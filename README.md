@@ -1,7 +1,6 @@
 # Interactive Camera System
 ## Teilnehmer
 * Keno Oelrichs García
-* Mavin Tekce
 * Max Stargardt
 ## Ziel des Projekts
 Ein Kamerasystem bestehend aus zwei Kameras nimmt zum einen einen Sprecher und zum anderen eine Topdownsicht eines Papiers o.Ä. auf.
