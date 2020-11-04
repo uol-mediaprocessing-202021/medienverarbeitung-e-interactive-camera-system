@@ -1,0 +1,58 @@
+[
+  {
+    "image": "fingerpistol_1.jpg",
+    "annotations": [
+      {
+        "label": "fingerpistol",
+        "coordinates": {
+          "x": 1321.7586206896551,
+          "y": 580.3620689655172,
+          "width": 790.0,
+          "height": 1145.0
+        }
+      }
+    ]
+  },
+  {
+    "image": "fingerpistol_2.jpg",
+    "annotations": [
+      {
+        "label": "fingerpistol",
+        "coordinates": {
+          "x": 1298.2586206896551,
+          "y": 562.3620689655172,
+          "width": 993.0,
+          "height": 1101.0
+        }
+      }
+    ]
+  },
+  {
+    "image": "fingerpistol_3.jpg",
+    "annotations": [
+      {
+        "label": "fingerpistol",
+        "coordinates": {
+          "x": 1282.7586206896551,
+          "y": 532.8620689655172,
+          "width": 1086.0,
+          "height": 1064.0
+        }
+      }
+    ]
+  },
+  {
+    "image": "fingerpistol_4.jpg",
+    "annotations": [
+      {
+        "label": "fingerpistol",
+        "coordinates": {
+          "x": 1324.7586206896551,
+          "y": 513.8620689655172,
+          "width": 1174.0,
+          "height": 1002.0
+        }
+      }
+    ]
+  }
+]
