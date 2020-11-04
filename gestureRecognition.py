@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow.keras
 
 # define a video capture object
-vid = cv2.VideoCapture(0)
+vid = cv2.VideoCapture(1)
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
@@ -21,7 +21,6 @@ while True:
     ret, frame = vid.read()
     frame = cv2.rotate(frame, cv2.ROTATE_180)
     h1 = frame.shape[0]
-
     w1 = frame.shape[1]
 
     # Create the array of the right shape to feed into the keras model
