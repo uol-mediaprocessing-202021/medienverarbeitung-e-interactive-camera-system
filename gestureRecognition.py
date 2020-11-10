@@ -16,10 +16,9 @@ model = tensorflow.keras.models.load_model('keras_model.h5')
 
 while True:
 
-    # Capture the video frame by frame
+    # Capture the video frame
+    # by frame
     ret, frame = vid.read()
-
-    # Rotate the Video (if Source is in Wrong Direction)
     frame = cv2.rotate(frame, cv2.ROTATE_180)
     h1 = frame.shape[0]
     w1 = frame.shape[1]
@@ -48,16 +47,18 @@ while True:
 
     # run the inference
     prediction = model.predict(data)
+    #print(prediction)
 
-    # print(prediction)
     predictionDictionary = {
-        "Zeigen": prediction[0][0],
-        "Hintergrund": prediction[0][1],
-        "Other": prediction[0][2]
-    }
-    print(max(predictionDictionary.items(), key=operator.itemgetter(1))[0])
+        "Zeigen" : prediction[0][0],
+        "Hintergrund" : prediction[0][1],
+        "Other" : prediction[0][2]
+        }
+    print(max(predictionDictionary.items(), key= operator.itemgetter(1))[0])
 
-    # the 'q' button is set as the quitting button
+    # the 'q' button is set as the
+    # quitting button you may use any
+    # desired button of your choice
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
