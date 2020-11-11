@@ -5,8 +5,24 @@ import cv2
 import numpy as np
 import tensorflow.keras
 
+def returnCameraIndexes():
+    ''' checks the first 10 Camerainputs and returns an array containing the available inputs.'''
+    index = 0
+    arr = []
+    i = 10
+    while i > 0:
+        cap = cv2.VideoCapture(index)
+        if cap.read()[0]:
+            arr.append(index)
+            cap.release()
+        index += 1
+        i -= 1
+    return arr
+
 # define a video capture object
-vid = cv2.VideoCapture(1)
+vid = cv2.VideoCapture(returnCameraIndexes()[0])
+#if(isinstance(vid, None)) :
+ #   vid = cv2.VideoCapture(0)
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
