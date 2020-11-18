@@ -4,10 +4,10 @@ from mss import mss
 
 
 def returnCameraIndexes():
-    # checks the first 10 Camerainputs and returns an array containing the available inputs.
+    # checks the first 3 Camerainputs and returns an array containing the available inputs.
     index = 0
     arr = []
-    i = 1
+    i = 3
     while i > 0:
         cap = cv2.VideoCapture(index)
         if cap.read()[0]:
@@ -23,8 +23,9 @@ vid = cv2.VideoCapture(returnCameraIndexes()[0])
 
 np.set_printoptions(suppress=True)
 
+# Ersten Monitor erkennen
 sct = mss()
-monitor = sct.monitors[0]
+monitor = sct.monitors[1]
 mon = {'top': 0, 'left': 0, 'width': monitor["width"] / 2, 'height': monitor["height"] / 2, "mon": 0}
 
 while 1:
