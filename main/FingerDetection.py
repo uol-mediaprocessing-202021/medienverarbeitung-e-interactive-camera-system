@@ -26,7 +26,7 @@ def returnCameraIndexes():
     return arr
 
 
-def rescale_frame(frame, wpercent=130, hpercent=130):
+def rescaleFrame(frame, wpercent=130, hpercent=130):
     """Rescales the frame to a given percentage"""
     width = int(frame.shape[1] * wpercent / 100)
     height = int(frame.shape[0] * hpercent / 100)
@@ -98,25 +98,26 @@ def maskFrameWithHistogram(frame, hist):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # mask area that matches with the histogram via back projection
-    histogramMask = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
-    # cv2.imshow("hist_masking_dst", histogramMask)
+    histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
+    cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
 
     maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
-    cv2.filter2D(histogramMask, -1, maskingCircle, histogramMask)
+    cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
 
-    ret, thresh = cv2.threshold(histogramMask, 150, 255, cv2.THRESH_BINARY)
+    ret, thresh = cv2.threshold(histogramMaskBackProjection, 150, 255, cv2.THRESH_BINARY)
 
     # thresh = cv2.dilate(thresh, None, iterations=5)
 
     thresh = cv2.merge((thresh, thresh, thresh))
 
-    # cv2.imshow("hist_masking_thresh", thresh)
+    # cv2.imshow("histogramMaskedFrame_thresh", thresh)
 
     return cv2.bitwise_and(frame, thresh)
 
 
-def centroid(max_contour):
-    moment = cv2.moments(max_contour)
+def getCenterCoordinatesOfContour(maxContour):
+    """Returns the Centercoordinates of a given contour in the shape  X, Y"""
+    moment = cv2.moments(maxContour)
     if moment['m00'] != 0:
         cx = int(moment['m10'] / moment['m00'])
         cy = int(moment['m01'] / moment['m00'])
@@ -126,6 +127,7 @@ def centroid(max_contour):
 
 
 def getFarthestPointFromContour(defects, contour, centroid):
+    """Returns the farthest point from a given centerpoint on a contour using defects"""
     if defects is not None and centroid is not None:
         s = defects[:, 0][:, 0]
         cx, cy = centroid
@@ -147,27 +149,36 @@ def getFarthestPointFromContour(defects, contour, centroid):
             return None
 
 
-def drawCircles(frame, traverse_point):
-    if traverse_point is not None:
-        for i in range(len(traverse_point)):
-            cv2.circle(frame, traverse_point[i], int(5 - (i * 15) / 200), [0, 255, 255], -1)
+def drawCircles(frame, traversedPoints):
+    """Draws Circles on the given frame using coordinates contained in traversedPoints. The circles are ever decreasingly in size.
+    Use with Caution: Too long point lists may cause an excpeption"""
+    if traversedPoints is not None:
+        for i in range(len(traversedPoints)):
+            radius = int(5 - (i * 15) / 200)
+            if radius < 1: #check if radius is 0
+                radius = 1
+            cv2.circle(frame, traversedPoints[i], radius, [0, 255, 255], -1)
 
 def evaluateFrame(frame, hand_hist):
+    """Evaluates the given frame using the given histogram to find the Center of
+    an area that matches with the histogram. Also finds the farthest point within the
+    matching area, to make pointy things e.g. a pointing finger out.
+    These special Areas are Marked with a colored dot"""
     maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
 
-    cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+    #cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
 
     #reduce noise
     maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
     maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
 
-    cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
+    #cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
 
 
     contour_list = getContoursfromMaskedImage(maskedHistogramImage)
     maxCont = max(contour_list, key=cv2.contourArea)
 
-    centerOfMaxCont = centroid(maxCont)
+    centerOfMaxCont = getCenterCoordinatesOfContour(maxCont)
     cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
 
     if maxCont is not None:
@@ -176,7 +187,7 @@ def evaluateFrame(frame, hand_hist):
         farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
         print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
         cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-        if len(traversePoint) < 20: # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS RISK CALC FAILURE DURING CIRCLE DRAWING
+        if len(traversePoint) < 25: # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS RISK CALC FAILURE DURING CIRCLE DRAWING
             traversePoint.append(farthestPoint)
         else:
             traversePoint.pop(0)
@@ -187,7 +198,7 @@ def evaluateFrame(frame, hand_hist):
 
 def main():
     global handHistogram
-    is_hand_hist_created = False
+    isHandHistogramCreated = False
     # capture video
     capture = cv2.VideoCapture(returnCameraIndexes()[0])
 
@@ -198,17 +209,17 @@ def main():
 
         # capture handhistogram if 'z' is pressed
         if pressed_key & 0xFF == ord('z'):
-            is_hand_hist_created = True
             handHistogram = createHistogramFromMeasuringRectangles(frame)
+            isHandHistogramCreated = True
 
-        if is_hand_hist_created:
+        if isHandHistogramCreated:
             evaluateFrame(frame, handHistogram)
 
         # Draw rectangles for Handhistogram capture
         else:
             frame = drawMeasuringRectangles(frame)
 
-        cv2.imshow("Live Feed", rescale_frame(frame))
+        cv2.imshow("Live Feed", rescaleFrame(frame))
 
         if pressed_key == 27:
             break
