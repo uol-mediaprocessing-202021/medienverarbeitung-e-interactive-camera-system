@@ -11,17 +11,33 @@ xCoordinatesOfMeasuringRectangles_bottomRight = None
 yCoordinatesOfMeasuringRectangles_bottomRight = None
 
 
+def returnCameraIndexes():
+    """ checks the first 10 Camerainputs and returns an array containing the available inputs."""
+    index = 0
+    arr = []
+    i = 10
+    while i > 0:
+        cap = cv2.VideoCapture(index)
+        if cap.read()[0]:
+            arr.append(index)
+            cap.release()
+        index += 1
+        i -= 1
+    return arr
+
+
 def rescale_frame(frame, wpercent=130, hpercent=130):
-    """Rescales"""
+    """Rescales the frame to a given percentage"""
     width = int(frame.shape[1] * wpercent / 100)
     height = int(frame.shape[0] * hpercent / 100)
     return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
 
 
-def contours(hist_mask_image):
-    gray_hist_mask_image = cv2.cvtColor(hist_mask_image, cv2.COLOR_BGR2GRAY)
-    ret, thresh = cv2.threshold(gray_hist_mask_image, 0, 255, 0)
-    _, cont, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+def getContoursfromMaskedImage(maskedHistogramImage):
+    """Returns the contours of a given masked Image"""
+    grayscaledMaskedHistogramImage = cv2.cvtColor(maskedHistogramImage, cv2.COLOR_BGR2GRAY)
+    ret, thresh = cv2.threshold(grayscaledMaskedHistogramImage, 0, 255, 0)
+    cont, hierarchyDontCare = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     return cont
 
 
@@ -54,7 +70,8 @@ def drawMeasuringRectangles(frame):
     return frame
 
 
-def createHandHistogram(frame):
+def createHistogramFromMeasuringRectangles(frame):
+    """Creates a Histogram from the given frame and measuring Rectangles through combining said rectangles to one Image"""
     global xCoordinatesOfMeasuringRectangles_topLeft, yCoordinatesOfMeasuringRectangles_topLeft
 
     # convert cv2 bgr colorspace to hsv colorspace for easier handling
@@ -76,12 +93,13 @@ def createHandHistogram(frame):
     return cv2.normalize(hand_hist, hand_hist, 0, 255, cv2.NORM_MINMAX)
 
 
-def hist_masking(frame, hist):
+def maskFrameWithHistogram(frame, hist):
+    """Returns the given frame masked by the given Histogram. The mask is created using Circles drawn over the matching Pixels"""
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # mask area that matches with the histogram via back projection
     histogramMask = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
-    # cv2.imshow("hist_masking_dst", dst)
+    # cv2.imshow("hist_masking_dst", histogramMask)
 
     maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     cv2.filter2D(histogramMask, -1, maskingCircle, histogramMask)
@@ -107,7 +125,7 @@ def centroid(max_contour):
         return None
 
 
-def farthest_point(defects, contour, centroid):
+def getFarthestPointFromContour(defects, contour, centroid):
     if defects is not None and centroid is not None:
         s = defects[:, 0][:, 0]
         cx, cy = centroid
@@ -129,59 +147,62 @@ def farthest_point(defects, contour, centroid):
             return None
 
 
-def draw_circles(frame, traverse_point):
+def drawCircles(frame, traverse_point):
     if traverse_point is not None:
         for i in range(len(traverse_point)):
-            cv2.circle(frame, traverse_point[i], int(5 - (5 * i * 3) / 100), [0, 255, 255], -1)
+            cv2.circle(frame, traverse_point[i], int(5 - (i * 15) / 200), [0, 255, 255], -1)
+
+def evaluateFrame(frame, hand_hist):
+    maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
+
+    cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+
+    #reduce noise
+    maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
+    maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
+
+    cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
 
 
-def manage_image_opr(frame, hand_hist):
-    hist_mask_image = hist_masking(frame, hand_hist)
+    contour_list = getContoursfromMaskedImage(maskedHistogramImage)
+    maxCont = max(contour_list, key=cv2.contourArea)
 
-    hist_mask_image = cv2.erode(hist_mask_image, None, iterations=2)
-    hist_mask_image = cv2.dilate(hist_mask_image, None, iterations=2)
+    centerOfMaxCont = centroid(maxCont)
+    cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
 
-    cv2.imshow("manage_image_opr_hist_mask_image", hist_mask_image)
-
-    contour_list = contours(hist_mask_image)
-    max_cont = max(contour_list, key=cv2.contourArea)
-
-    cnt_centroid = centroid(max_cont)
-    cv2.circle(frame, cnt_centroid, 5, [255, 0, 255], -1)
-
-    if max_cont is not None:
-        hull = cv2.convexHull(max_cont, returnPoints=False)
-        defects = cv2.convexityDefects(max_cont, hull)
-        far_point = farthest_point(defects, max_cont, cnt_centroid)
-        print("Centroid : " + str(cnt_centroid) + ", farthest Point : " + str(far_point))
-        cv2.circle(frame, far_point, 5, [0, 0, 255], -1)
-        if len(traversePoint) < 100:
-            traversePoint.append(far_point)
+    if maxCont is not None:
+        hull = cv2.convexHull(maxCont, returnPoints=False)
+        defects = cv2.convexityDefects(maxCont, hull)
+        farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
+        print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+        cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+        if len(traversePoint) < 20: # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS RISK CALC FAILURE DURING CIRCLE DRAWING
+            traversePoint.append(farthestPoint)
         else:
             traversePoint.pop(0)
-            traversePoint.append(far_point)
+            traversePoint.append(farthestPoint)
 
-        draw_circles(frame, traversePoint)
+        drawCircles(frame, traversePoint)
 
 
 def main():
     global handHistogram
     is_hand_hist_created = False
     # capture video
-    capture = cv2.VideoCapture(0)
+    capture = cv2.VideoCapture(returnCameraIndexes()[0])
 
     while capture.isOpened():
         pressed_key = cv2.waitKey(1)
-        _, frame = capture.read()
+        dontCare, frame = capture.read()
         frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
         if pressed_key & 0xFF == ord('z'):
             is_hand_hist_created = True
-            handHistogram = createHandHistogram(frame)
+            handHistogram = createHistogramFromMeasuringRectangles(frame)
 
         if is_hand_hist_created:
-            manage_image_opr(frame, handHistogram)
+            evaluateFrame(frame, handHistogram)
 
         # Draw rectangles for Handhistogram capture
         else:
