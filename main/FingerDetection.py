@@ -232,7 +232,7 @@ def evaluateFrame(frame, hand_hist):
 
 
 def main():
-    global handHistogram
+    global handHistogram, detectionRadiusOfFarthestPointsFromMiddlePoint
     isHandHistogramCreated = False
     # capture video
     capture = cv2.VideoCapture(0)
@@ -254,6 +254,14 @@ def main():
         if pressedKey & 0xFF == ord('z'):
             handHistogram = createHistogramFromMeasuringRectangles(frame)
             isHandHistogramCreated = True
+
+        #enlargen or shrink detection radius if + or - is pressed
+        if pressedKey & 0xFF == ord('+'):
+            detectionRadiusOfFarthestPointsFromMiddlePoint += 10
+
+        if pressedKey & 0xFF == ord('-') :
+            detectionRadiusOfFarthestPointsFromMiddlePoint -= 10
+
 
         if isHandHistogramCreated:
             evaluateFrame(frame, handHistogram)
