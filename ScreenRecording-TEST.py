@@ -37,8 +37,8 @@ while 1:
     cam = vid.read()[1]
     cam = cv2.resize(np.array(cam), (640, 360), interpolation=cv2.INTER_AREA)
 
-    x_offset = 50
-    y_offset = 50
+    x_offset = 0
+    y_offset = 0
     output = screen
     output[y_offset:y_offset + cam.shape[0], x_offset:x_offset + cam.shape[1]] = cam
 
