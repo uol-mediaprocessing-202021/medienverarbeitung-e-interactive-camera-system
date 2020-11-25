@@ -224,18 +224,22 @@ def evaluateFrame(frame, hand_hist):
         centerOfMaxCont = getCenterCoordinatesOfContour(maxCont)
         if centerOfMaxCont is not None:
 
-            #build up centerPointList
+            # build up centerPointList
             if len(lastCenterPointPositions) < 15:
                 lastCenterPointPositions.append(centerOfMaxCont)
-                XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(lastCenterPointPositions)
+                XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(
+                    lastCenterPointPositions)
                 cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
                 resetWhetherCameraShouldBeShownCountdownTimer()
 
-            #check whether new centerpoint is within a given tolerance range
-            elif isPointInRangeOfOfOtherPoint(centerOfMaxCont[0], centerOfMaxCont[1], XCenterPointOfCenterPointList, YCenterPointOfCenterPointList, detectionRadiusOfNewCenterPointsFromCommonCenterPoint):
+            # check whether new centerpoint is within a given tolerance range
+            elif isPointInRangeOfOfOtherPoint(centerOfMaxCont[0], centerOfMaxCont[1], XCenterPointOfCenterPointList,
+                                              YCenterPointOfCenterPointList,
+                                              detectionRadiusOfNewCenterPointsFromCommonCenterPoint):
                 lastCenterPointPositions.append(centerOfMaxCont)
                 lastCenterPointPositions.pop(0)
-                XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(lastCenterPointPositions)
+                XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(
+                    lastCenterPointPositions)
                 cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
                 resetWhetherCameraShouldBeShownCountdownTimer()
 
@@ -250,19 +254,22 @@ def evaluateFrame(frame, hand_hist):
             farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
             # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
 
-            #Build up farthest point list
+            # Build up farthest point list
             if len(farthestPointList) < 25:
                 farthestPointList.append(farthestPoint)
                 cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(farthestPointList)
+                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
+                    farthestPointList)
 
-            #check if new farthest point is within a given tolerance range
-            elif isPointInRangeOfOfOtherPoint(farthestPoint[0], farthestPoint[1], XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, detectionRadiusOfFarthestPointsFromCommonFarthestPoint):
+            # check if new farthest point is within a given tolerance range
+            elif isPointInRangeOfOfOtherPoint(farthestPoint[0], farthestPoint[1], XCenterPointOfFarthestPointList,
+                                              YCenterPointOfFarthestPointList,
+                                              detectionRadiusOfFarthestPointsFromCommonFarthestPoint):
                 farthestPointList.pop(0)
                 farthestPointList.append(farthestPoint)
                 cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(farthestPointList)
-
+                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
+                    farthestPointList)
 
             drawCirclesOnTraversedPoints(frame, farthestPointList)
 
@@ -287,13 +294,13 @@ def main():
         cam = capture.read()[1]
         cam = cv2.resize(np.array(cam), (640, 360), interpolation=cv2.INTER_AREA)
 
-        x_offset = 0
-        y_offset = 0
         output = screen
         if shouldCameraBeShown:
+            x_offset = 0
+            y_offset = 0
             output[y_offset:y_offset + cam.shape[0], x_offset:x_offset + cam.shape[1]] = cam
 
-        #cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
+        # cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
 
         # Fingerdetection
         pressedKey = cv2.waitKey(1)
