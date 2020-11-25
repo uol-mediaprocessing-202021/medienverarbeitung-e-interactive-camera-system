@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from mss import mss
 
 handHistogram = None
 traversePoint = []
@@ -9,6 +10,11 @@ yCoordinatesOfMeasuringRectangles_topLeft = None
 
 xCoordinatesOfMeasuringRectangles_bottomRight = None
 yCoordinatesOfMeasuringRectangles_bottomRight = None
+
+XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList = 0, 0
+detectionRadiusOfFarthestPointsFromMiddlePoint = 200
+
+shouldCameraBeShown = True
 
 
 def returnCameraIndexes():
@@ -95,7 +101,7 @@ def maskFrameWithHistogram(frame, hist):
 
     # mask area that matches with the histogram via back projection
     histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
-    cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
+    #cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
 
     maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
@@ -106,7 +112,7 @@ def maskFrameWithHistogram(frame, hist):
 
     thresh = cv2.merge((thresh, thresh, thresh))
 
-    cv2.imshow("histogramMaskedFrame_thresh", thresh)
+    #cv2.imshow("histogramMaskedFrame_thresh", thresh)
 
     return cv2.bitwise_and(frame, thresh)
 
@@ -143,15 +149,45 @@ def getFarthestPointFromContour(defects, contour, centroid):
             return None
 
 
-def drawCircles(frame, traversedPoints):
+def drawCirclesOnTraversedPoints(frame, traversedPoints):
     """Draws Circles on the given frame using coordinates contained in traversedPoints. The circles are ever decreasingly in size.
-    Use with Caution: Too long point lists may cause an excpeption"""
+    Also draws a Circle around the common centerpoint of the traversedPoints."""
     if traversedPoints is not None:
         for i in range(len(traversedPoints)):
+
             radius = int(5 - (i * 15) / 200)
             if radius < 1:  # check if radius is 0
                 radius = 1
             cv2.circle(frame, traversedPoints[i], radius, [0, 255, 255], -1)
+
+            cv2.circle(frame, (XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList),
+                       detectionRadiusOfFarthestPointsFromMiddlePoint, [0, 255, 0], 1)
+
+
+def setCommonCenterPointOfFarthestPointsWithTraversedPoints():
+    """Sets the common centerpoint of all traversedPoints"""
+
+    global traversePoint, XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList
+    SumOfAllXCoordinates = 0
+    SumOfAllYCoordinates = 0
+
+    if traversePoint is not None:
+        for i in range(len(traversePoint)):
+            SumOfAllXCoordinates += traversePoint[i][0]
+            SumOfAllYCoordinates += traversePoint[i][1]
+
+        if len(traversePoint) > 0:
+            XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList = SumOfAllXCoordinates // len(
+                traversePoint), SumOfAllYCoordinates // len(traversePoint)
+
+
+def isPointInRangeOfMiddlePoint(givenX, givenY):
+    """Checks whether the given point is within @param detectionRadiusOfFarthestPointsFromMiddlePoint
+    returns True if yes, false otherwise"""
+    if np.abs(np.sqrt(np.square(givenX - XMiddlePointOfFarthestPointList) + np.square(
+            givenY - YMiddlePointOfFarthestPointList))) <= detectionRadiusOfFarthestPointsFromMiddlePoint:
+        return True
+    return False
 
 
 def evaluateFrame(frame, hand_hist):
@@ -159,15 +195,16 @@ def evaluateFrame(frame, hand_hist):
     an area that matches with the histogram. Also finds the farthest point within the
     matching area, to make pointy things e.g. a pointing finger out.
     These special Areas are Marked with a colored dot"""
+    global shouldCameraBeShown
     maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
 
-    cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+    #cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
 
     # reduce noise
     maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
     maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
 
-    cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
+    #cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
 
     contourList = getContoursFromMaskedImage(maskedHistogramImage)
 
@@ -182,27 +219,60 @@ def evaluateFrame(frame, hand_hist):
             hull = cv2.convexHull(maxCont, returnPoints=False)
             defects = cv2.convexityDefects(maxCont, hull)
             farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
-            print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
-            cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-            if len(
-                    traversePoint) < 25:  # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS RISK CALC FAILURE DURING CIRCLE DRAWING
+            # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+
+            if len(traversePoint) < 25:  # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS SHRINK DOTS TO 1 PIXEL SIZE
                 traversePoint.append(farthestPoint)
-            else:
+                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+                setCommonCenterPointOfFarthestPointsWithTraversedPoints()
+                shouldCameraBeShown = True
+
+            elif isPointInRangeOfMiddlePoint(farthestPoint[0], farthestPoint[1]):
                 traversePoint.pop(0)
                 traversePoint.append(farthestPoint)
+                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+                setCommonCenterPointOfFarthestPointsWithTraversedPoints()
+                shouldCameraBeShown = True
 
-            drawCircles(frame, traversePoint)
+            else:
+                shouldCameraBeShown = False
+
+            drawCirclesOnTraversedPoints(frame, traversePoint)
 
 
 def main():
-    global handHistogram
+    global handHistogram, detectionRadiusOfFarthestPointsFromMiddlePoint
     isHandHistogramCreated = False
-    # capture video
-    capture = cv2.VideoCapture(0)
-
     isImageFlipped = False
+    # capture video
+    capture = cv2.VideoCapture(returnCameraIndexes()[0])
+
+    sct = mss()
+    monitor = sct.monitors[1]
+    mon = {'top': 0, 'left': 0, 'width': monitor["width"] / 2, 'height': monitor["height"] / 2, "mon": 0}
+
+
 
     while capture.isOpened():
+        # Read Monitor
+        screen = sct.grab(monitor)
+        screen = cv2.resize(np.array(screen), (int(mon["width"]), int(mon["height"])), interpolation=cv2.INTER_AREA)
+        screen = cv2.cvtColor(screen, cv2.COLOR_BGRA2BGR)
+        # Read Camera
+        cam = capture.read()[1]
+        cam = cv2.resize(np.array(cam), (640, 360), interpolation=cv2.INTER_AREA)
+
+        x_offset = 0
+        y_offset = 0
+        output = screen
+        if shouldCameraBeShown:
+            output[y_offset:y_offset + cam.shape[0], x_offset:x_offset + cam.shape[1]] = cam
+
+        cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
+
+
+
+        # Fingerdetection
         pressedKey = cv2.waitKey(1)
         dontCare, frame = capture.read()
 
@@ -218,6 +288,14 @@ def main():
             handHistogram = createHistogramFromMeasuringRectangles(frame)
             isHandHistogramCreated = True
 
+        #enlargen or shrink detection radius if + or - is pressed
+        if pressedKey & 0xFF == ord('+'):
+            detectionRadiusOfFarthestPointsFromMiddlePoint += 10
+
+        if pressedKey & 0xFF == ord('-') :
+            detectionRadiusOfFarthestPointsFromMiddlePoint -= 10
+
+
         if isHandHistogramCreated:
             evaluateFrame(frame, handHistogram)
 
@@ -225,7 +303,7 @@ def main():
         else:
             frame = drawMeasuringRectangles(frame)
 
-        cv2.imshow("Live Feed", rescaleFrame(frame))
+        cv2.imshow("main_camera_with_info", rescaleFrame(frame))
 
         if pressedKey == 27:
             break
