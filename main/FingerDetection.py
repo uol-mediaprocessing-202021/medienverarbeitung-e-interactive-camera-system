@@ -193,9 +193,10 @@ def isPointInRangeOfOfOtherPoint(givenX1, givenY1, givenX2, givenY2, givenRange)
     return False
 
 
-def resetCountdownTimer():
-    global countDownWhetherCameraShouldBeShown
+def resetWhetherCameraShouldBeShownCountdownTimer():
+    global countDownWhetherCameraShouldBeShown, shouldCameraBeShown
     countDownWhetherCameraShouldBeShown = 40
+    shouldCameraBeShown = True
 
 
 def evaluateFrame(frame, hand_hist):
@@ -228,6 +229,7 @@ def evaluateFrame(frame, hand_hist):
                 lastCenterPointPositions.append(centerOfMaxCont)
                 XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(lastCenterPointPositions)
                 cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
+                resetWhetherCameraShouldBeShownCountdownTimer()
 
             #check whether new centerpoint is within a given tolerance range
             elif isPointInRangeOfOfOtherPoint(centerOfMaxCont[0], centerOfMaxCont[1], XCenterPointOfCenterPointList, YCenterPointOfCenterPointList, detectionRadiusOfNewCenterPointsFromCommonCenterPoint):
@@ -235,7 +237,12 @@ def evaluateFrame(frame, hand_hist):
                 lastCenterPointPositions.pop(0)
                 XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(lastCenterPointPositions)
                 cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
+                resetWhetherCameraShouldBeShownCountdownTimer()
 
+            else:
+                countDownWhetherCameraShouldBeShown -= 1
+                if countDownWhetherCameraShouldBeShown <= 0:
+                    shouldCameraBeShown = False
 
         if maxCont is not None:
             hull = cv2.convexHull(maxCont, returnPoints=False)
