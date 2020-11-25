@@ -13,16 +13,12 @@ yCoordinatesOfMeasuringRectangles_bottomRight = None
 
 def returnCameraIndexes():
     """ checks the first 10 Camerainputs and returns an array containing the available inputs."""
-    index = 0
     arr = []
-    i = 10
-    while i > 0:
+    for index, _ in enumerate(range(10, 0, -1)):
         cap = cv2.VideoCapture(index)
         if cap.read()[0]:
             arr.append(index)
             cap.release()
-        index += 1
-        i -= 1
     return arr
 
 
@@ -118,12 +114,11 @@ def maskFrameWithHistogram(frame, hist):
 def getCenterCoordinatesOfContour(maxContour):
     """Returns the Centercoordinates of a given contour in the shape  X, Y"""
     moment = cv2.moments(maxContour)
-    if moment['m00'] != 0:
-        cx = int(moment['m10'] / moment['m00'])
-        cy = int(moment['m01'] / moment['m00'])
-        return cx, cy
-    else:
+    if moment['m00'] == 0:
         return None
+    cx = int(moment['m10'] / moment['m00'])
+    cy = int(moment['m01'] / moment['m00'])
+    return cx, cy
 
 
 def getFarthestPointFromContour(defects, contour, centroid):
@@ -143,8 +138,7 @@ def getFarthestPointFromContour(defects, contour, centroid):
 
         if dist_max_i < len(s):
             farthest_defect = s[dist_max_i]
-            farthest_point = tuple(contour[farthest_defect][0])
-            return farthest_point
+            return tuple(contour[farthest_defect][0])
         else:
             return None
 
@@ -155,9 +149,10 @@ def drawCircles(frame, traversedPoints):
     if traversedPoints is not None:
         for i in range(len(traversedPoints)):
             radius = int(5 - (i * 15) / 200)
-            if radius < 1: #check if radius is 0
+            if radius < 1:  # check if radius is 0
                 radius = 1
             cv2.circle(frame, traversedPoints[i], radius, [0, 255, 255], -1)
+
 
 def evaluateFrame(frame, hand_hist):
     """Evaluates the given frame using the given histogram to find the Center of
@@ -168,16 +163,15 @@ def evaluateFrame(frame, hand_hist):
 
     cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
 
-    #reduce noise
+    # reduce noise
     maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
     maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
 
     cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
 
-
     contourList = getContoursFromMaskedImage(maskedHistogramImage)
 
-    #check whether the contourList is emtpy AKA no hand is seen in the frame AKA dots all around the frame
+    # check whether the contourList is emtpy AKA no hand is seen in the frame AKA dots all around the frame
     if contourList:
         maxCont = max(contourList, key=cv2.contourArea)
 
@@ -190,7 +184,8 @@ def evaluateFrame(frame, hand_hist):
             farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
             print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
             cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-            if len(traversePoint) < 25: # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS RISK CALC FAILURE DURING CIRCLE DRAWING
+            if len(
+                    traversePoint) < 25:  # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS RISK CALC FAILURE DURING CIRCLE DRAWING
                 traversePoint.append(farthestPoint)
             else:
                 traversePoint.pop(0)
@@ -211,12 +206,11 @@ def main():
         pressedKey = cv2.waitKey(1)
         dontCare, frame = capture.read()
 
-
         # flip image if f is pressed
         if pressedKey & 0xFF == ord('f'):
             isImageFlipped = not isImageFlipped
 
-        if isImageFlipped :
+        if isImageFlipped:
             frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
