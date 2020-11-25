@@ -11,7 +11,7 @@ xCoordinatesOfMeasuringRectangles_bottomRight = None
 yCoordinatesOfMeasuringRectangles_bottomRight = None
 
 XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList = 0, 0
-detectionRadiusOfFarthestPointsFromMiddlePoint = 150
+detectionRadiusOfFarthestPointsFromMiddlePoint = 200
 
 
 def returnCameraIndexes():
@@ -148,26 +148,43 @@ def getFarthestPointFromContour(defects, contour, centroid):
 
 def drawCirclesOnTraversedPoints(frame, traversedPoints):
     """Draws Circles on the given frame using coordinates contained in traversedPoints. The circles are ever decreasingly in size.
-    Use with Caution: Too long point lists may cause an excpeption"""
-    SumOfAllXCoordinates = 0
-    SumOfAllYCoordinates = 0
+    Also draws a Circle around the common centerpoint of the traversedPoints."""
     if traversedPoints is not None:
         for i in range(len(traversedPoints)):
-
-            tempX, tempY = traversedPoints[i]
-            SumOfAllXCoordinates += tempX
-            SumOfAllYCoordinates += tempY
 
             radius = int(5 - (i * 15) / 200)
             if radius < 1:  # check if radius is 0
                 radius = 1
             cv2.circle(frame, traversedPoints[i], radius, [0, 255, 255], -1)
 
-        XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList = SumOfAllXCoordinates // len(traversedPoints), SumOfAllYCoordinates // len(traversedPoints)
+            cv2.circle(frame, (XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList),
+                       detectionRadiusOfFarthestPointsFromMiddlePoint, [0, 255, 0], 1)
 
-        cv2.circle(frame, (XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList), detectionRadiusOfFarthestPointsFromMiddlePoint, [0, 255, 0], 1)
+
+def setCommonCenterPointOfFarthestPointsWithTraversedPoints():
+    """Sets the common centerpoint of all traversedPoints"""
+
+    global traversePoint, XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList
+    SumOfAllXCoordinates = 0
+    SumOfAllYCoordinates = 0
+
+    if traversePoint is not None:
+        for i in range(len(traversePoint)):
+            SumOfAllXCoordinates += traversePoint[i][0]
+            SumOfAllYCoordinates += traversePoint[i][1]
+
+        if len(traversePoint) > 0:
+            XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList = SumOfAllXCoordinates // len(
+                traversePoint), SumOfAllYCoordinates // len(traversePoint)
 
 
+def isPointInRangeOfMiddlePoint(givenX, givenY):
+    """Checks whether the given point is within @param detectionRadiusOfFarthestPointsFromMiddlePoint
+    returns True if yes, false otherwise"""
+    if np.abs(np.sqrt(np.square(givenX - XMiddlePointOfFarthestPointList) + np.square(
+            givenY - YMiddlePointOfFarthestPointList))) <= detectionRadiusOfFarthestPointsFromMiddlePoint:
+        return True
+    return False
 
 
 def evaluateFrame(frame, hand_hist):
@@ -198,13 +215,18 @@ def evaluateFrame(frame, hand_hist):
             hull = cv2.convexHull(maxCont, returnPoints=False)
             defects = cv2.convexityDefects(maxCont, hull)
             farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
-            #print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
-            cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+            # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+
             if len(traversePoint) < 25:  # DONT PUT THIS NUMBER TOO HIGH! LONG LISTS SHRINK DOTS TO 1 PIXEL SIZE
                 traversePoint.append(farthestPoint)
-            else:
+                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+                setCommonCenterPointOfFarthestPointsWithTraversedPoints()
+
+            elif isPointInRangeOfMiddlePoint(farthestPoint[0], farthestPoint[1]):
                 traversePoint.pop(0)
                 traversePoint.append(farthestPoint)
+                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+                setCommonCenterPointOfFarthestPointsWithTraversedPoints()
 
             drawCirclesOnTraversedPoints(frame, traversePoint)
 
