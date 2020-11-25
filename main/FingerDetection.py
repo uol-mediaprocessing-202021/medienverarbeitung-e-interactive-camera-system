@@ -105,7 +105,7 @@ def maskFrameWithHistogram(frame, hist):
 
     # mask area that matches with the histogram via back projection
     histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
-    # cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
+    cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
 
     maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
@@ -116,7 +116,7 @@ def maskFrameWithHistogram(frame, hist):
 
     thresh = cv2.merge((thresh, thresh, thresh))
 
-    # cv2.imshow("histogramMaskedFrame_thresh", thresh)
+    cv2.imshow("histogramMaskedFrame_thresh", thresh)
 
     return cv2.bitwise_and(frame, thresh)
 
@@ -207,13 +207,13 @@ def evaluateFrame(frame, hand_hist):
     global shouldCameraBeShown, countDownWhetherCameraShouldBeShown, lastCenterPointPositions, XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
     maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
 
-    # cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+    cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
 
     # reduce noise
     maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
     maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
 
-    # cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
+    cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
 
     contourList = getContoursFromMaskedImage(maskedHistogramImage)
 
@@ -293,7 +293,7 @@ def main():
         if shouldCameraBeShown:
             output[y_offset:y_offset + cam.shape[0], x_offset:x_offset + cam.shape[1]] = cam
 
-        cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
+        #cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
 
         # Fingerdetection
         pressedKey = cv2.waitKey(1)
