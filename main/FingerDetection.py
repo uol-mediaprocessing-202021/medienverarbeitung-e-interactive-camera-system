@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from mss import mss
 
 handHistogram = None
 traversePoint = []
@@ -12,6 +13,8 @@ yCoordinatesOfMeasuringRectangles_bottomRight = None
 
 XMiddlePointOfFarthestPointList, YMiddlePointOfFarthestPointList = 0, 0
 detectionRadiusOfFarthestPointsFromMiddlePoint = 200
+
+shouldCameraBeShown = True
 
 
 def returnCameraIndexes():
@@ -192,6 +195,7 @@ def evaluateFrame(frame, hand_hist):
     an area that matches with the histogram. Also finds the farthest point within the
     matching area, to make pointy things e.g. a pointing finger out.
     These special Areas are Marked with a colored dot"""
+    global shouldCameraBeShown
     maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
 
     #cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
@@ -221,12 +225,17 @@ def evaluateFrame(frame, hand_hist):
                 traversePoint.append(farthestPoint)
                 cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
                 setCommonCenterPointOfFarthestPointsWithTraversedPoints()
+                shouldCameraBeShown = True
 
             elif isPointInRangeOfMiddlePoint(farthestPoint[0], farthestPoint[1]):
                 traversePoint.pop(0)
                 traversePoint.append(farthestPoint)
                 cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
                 setCommonCenterPointOfFarthestPointsWithTraversedPoints()
+                shouldCameraBeShown = True
+
+            else:
+                shouldCameraBeShown = False
 
             drawCirclesOnTraversedPoints(frame, traversePoint)
 
@@ -234,12 +243,36 @@ def evaluateFrame(frame, hand_hist):
 def main():
     global handHistogram, detectionRadiusOfFarthestPointsFromMiddlePoint
     isHandHistogramCreated = False
-    # capture video
-    capture = cv2.VideoCapture(0)
-
     isImageFlipped = False
+    # capture video
+    capture = cv2.VideoCapture(returnCameraIndexes()[0])
+
+    sct = mss()
+    monitor = sct.monitors[1]
+    mon = {'top': 0, 'left': 0, 'width': monitor["width"] / 2, 'height': monitor["height"] / 2, "mon": 0}
+
+
 
     while capture.isOpened():
+        # Read Monitor
+        screen = sct.grab(monitor)
+        screen = cv2.resize(np.array(screen), (int(mon["width"]), int(mon["height"])), interpolation=cv2.INTER_AREA)
+        screen = cv2.cvtColor(screen, cv2.COLOR_BGRA2BGR)
+        # Read Camera
+        cam = capture.read()[1]
+        cam = cv2.resize(np.array(cam), (640, 360), interpolation=cv2.INTER_AREA)
+
+        x_offset = 0
+        y_offset = 0
+        output = screen
+        if shouldCameraBeShown:
+            output[y_offset:y_offset + cam.shape[0], x_offset:x_offset + cam.shape[1]] = cam
+
+        cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
+
+
+
+        # Fingerdetection
         pressedKey = cv2.waitKey(1)
         dontCare, frame = capture.read()
 
@@ -270,7 +303,7 @@ def main():
         else:
             frame = drawMeasuringRectangles(frame)
 
-        cv2.imshow("Live Feed", rescaleFrame(frame))
+        cv2.imshow("main_camera_with_info", rescaleFrame(frame))
 
         if pressedKey == 27:
             break
