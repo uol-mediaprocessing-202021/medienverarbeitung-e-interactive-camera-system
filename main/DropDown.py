@@ -8,6 +8,14 @@ from PIL import Image
 from PIL import ImageTk
 from mss import mss
 
+# Gui Erstellen
+app = tk.Tk()
+app.geometry()
+gui = tk.Frame(app)
+gui.grid(row=0, column=0, pady=2)
+imageViewer = tk.Frame(gui)
+imageViewer.grid(row=1, column=0, sticky="N")
+
 
 class CountsPerSec:
     """
@@ -82,6 +90,45 @@ class CameraGrabber(object):
         self.stopped = True
 
 
+class VideoShower:
+    """
+    Class that continuously shows a frame using a dedicated thread.
+    """
+
+    def __init__(self, frame=None, width=1280, height=720):
+        self.frame = frame
+        self.stopped = False
+        self.panel = None
+        self.width = width
+        self.height = height
+
+    def start(self):
+        Thread(target=self.show, args=()).start()
+        return self
+
+    def show(self):
+        try:
+            img = cv2.resize(np.array(self.frame), (self.width, self.height), interpolation=cv2.INTER_AREA)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+            img = Image.fromarray(img)
+            self.frame = ImageTk.PhotoImage(img)
+            # if the panel is not None, we need to initialize it
+            if self.panel is None:
+                self.panel = tk.Label(imageViewer, image=self.frame)
+                self.panel.image = self.frame
+                self.panel.pack(side=tk.TOP, padx=10, pady=10)
+
+            # otherwise, simply update the panel
+            else:
+                self.panel.configure(image=self.frame)
+                self.panel.image = self.frame
+        except RuntimeError as e:
+            print("[INFO] caught a RuntimeError")
+
+    def stop(self):
+        self.stopped = True
+
+
 def putIterationsPerSec(frame, iterations_per_sec, x, y):
     """
     Add iterations per second text to lower-left corner of a frame.
@@ -94,9 +141,6 @@ def putIterationsPerSec(frame, iterations_per_sec, x, y):
 
 # Show App Loading Screen
 loading = CameraGrabber("loading.avi").start()
-
-app = tk.Tk()
-app.geometry()
 
 # Ersten Monitor erkennen
 sct = mss()
@@ -146,12 +190,8 @@ cameraDropDownValue = tk.StringVar()
 cameraDropDownValue.set(Cameras[0])
 
 # Gui erstellen
-gui = tk.Frame(app)
-gui.grid(row=0, column=0, pady=2)
 dropdowns = tk.Frame(gui)
 dropdowns.grid(row=0, column=0)
-imageViewer = tk.Frame(gui)
-imageViewer.grid(row=1, column=0, sticky="N")
 monitorDropDown = tk.Frame(dropdowns)
 monitorDropDownLabel = tk.Label(monitorDropDown, text="Zu verwendender Monitor").pack(side=tk.LEFT)
 monitorDropDownMenu = tk.OptionMenu(monitorDropDown, monitorDropDownValue, *Monitors)
@@ -169,46 +209,6 @@ app.geometry('1280x720')
 
 oldMonitorDropDownValue = getMonitorDropDownValue()
 oldCameraDropDownValue = getCameraDropDownValue()
-
-
-class VideoShower:
-    """
-    Class that continuously shows a frame using a dedicated thread.
-    """
-
-    def __init__(self, frame=None, width=1280, height=720):
-        self.frame = frame
-        self.stopped = False
-        self.panel = None
-        self.width = width
-        self.height = height
-
-    def start(self):
-        Thread(target=self.show, args=()).start()
-        return self
-
-    def show(self):
-        try:
-            img = cv2.resize(np.array(self.frame), (self.width, self.height), interpolation=cv2.INTER_AREA)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
-            img = Image.fromarray(img)
-            self.frame = ImageTk.PhotoImage(img)
-            # if the panel is not None, we need to initialize it
-            if self.panel is None:
-                self.panel = tk.Label(imageViewer, image=self.frame)
-                self.panel.image = self.frame
-                self.panel.pack(side=tk.TOP, padx=10, pady=10)
-
-            # otherwise, simply update the panel
-            else:
-                self.panel.configure(image=self.frame)
-                self.panel.image = self.frame
-        except RuntimeError as e:
-            print("[INFO] caught a RuntimeError")
-
-    def stop(self):
-        self.stopped = True
-
 
 monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
 monitor_stream_view = VideoShower(monitor_stream.frame, 1230, 670)
@@ -237,9 +237,10 @@ while True:
         break
 
     frame = monitor_stream.frame
-    frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-    # TODO Mach wat mit dem frame
 
+    #  TODO Mach wat mit dem frame
+
+    frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
     monitor_stream_view.frame = frame
     monitor_stream_view.show()
     cps.increment()
