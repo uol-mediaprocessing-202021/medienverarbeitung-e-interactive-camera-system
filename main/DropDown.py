@@ -91,7 +91,7 @@ class CameraGrabber(object):
                 self.stop()
             else:
                 (self.grabbed, img) = self.stream.read()
-                self.frame = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
+                self.frame = cv2.resize(cv2.UMat(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
 
     def stop(self):
         self.stopped = True
@@ -145,9 +145,6 @@ def putIterationsPerSec(frame, iterations_per_sec, x, y):
                 (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
     return frame
 
-
-# Show App Loading Screen
-loading = CameraGrabber("loading.avi").start()
 
 # Ersten Monitor erkennen
 sct = mss()
