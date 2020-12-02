@@ -104,13 +104,26 @@ def maskFrameWithHistogram(frame, hist):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # mask area that matches with the histogram via back projection
-    histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
+    histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 5)
     cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
 
-    maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
+
+    maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+
+
+    closedBackProjection = cv2.morphologyEx(histogramMaskBackProjection, cv2.MORPH_CLOSE,
+                                            maskingCircle, iterations=2)
+
+    #cv2.imshow("histogramMaskedFrame_closed", closedBackProjection)
+
+    openedBackProjection = cv2.morphologyEx(closedBackProjection, cv2.MORPH_OPEN,
+                                            maskingCircle, iterations=2)
+
+    #cv2.imshow("histogramMaskedFrame_opened", openedBackProjection)
+
     cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
 
-    ret, thresh = cv2.threshold(histogramMaskBackProjection, 150, 255, cv2.THRESH_BINARY)
+    ret, thresh = cv2.threshold(openedBackProjection, 1, 255, cv2.THRESH_BINARY)
 
     # thresh = cv2.dilate(thresh, None, iterations=5)
 
@@ -207,13 +220,13 @@ def evaluateFrame(frame, hand_hist):
     global shouldCameraBeShown, countDownWhetherCameraShouldBeShown, lastCenterPointPositions, XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
     maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
 
-    cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+    # cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
 
     # reduce noise
     maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
     maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
 
-    cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
+    # cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
 
     contourList = getContoursFromMaskedImage(maskedHistogramImage)
 
@@ -314,7 +327,7 @@ def main():
             frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
-        if pressedKey & 0xFF == ord('z'):
+        if pressedKey & 0xFF == ord('z') and not isHandHistogramCreated:
             handHistogram = createHistogramFromMeasuringRectangles(frame)
             isHandHistogramCreated = True
 
@@ -324,6 +337,10 @@ def main():
 
         if pressedKey & 0xFF == ord('-'):
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
+
+        if pressedKey & 0xFF == ord('r') and isHandHistogramCreated:
+            handHistogram = None
+            isHandHistogramCreated = False
 
         # TODO ADD RESET FEATURE
 
