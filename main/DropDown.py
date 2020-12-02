@@ -4,6 +4,8 @@ from threading import Thread
 
 import cv2
 import numpy as np
+from PIL import Image
+from PIL import ImageTk
 from mss import mss
 
 
@@ -32,22 +34,27 @@ class CountsPerSec:
 
 class MonitorGrabber(object):
 
-    def __init__(self, src=1):
-        self.src = sct.monitors[src]
-        self.frame = sct.grab(self.src)
-        self.frame = cv2.resize(np.array(self.frame), (1280, 720), interpolation=cv2.INTER_AREA)
-        self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGRA2BGR)
+    def __init__(self, src=1, width=1280, height=720):
+        self.setSrc(src)
+        self.width = width
+        self.height = height
+        img = sct.grab(self.src)
+        img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
+        self.frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
         self.stopped = False
 
     def start(self):
         Thread(target=self.get, args=()).start()
         return self
 
+    def setSrc(self, src):
+        self.src = sct.monitors[src]
+
     def get(self):
         while not self.stopped:
-            self.frame = sct.grab(self.src)
-            self.frame = cv2.resize(np.array(self.frame), (1280, 720), interpolation=cv2.INTER_AREA)
-            self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGRA2BGR)
+            img = sct.grab(self.src)
+            img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
+            self.frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
     def stop(self):
         self.stopped = True
@@ -75,37 +82,13 @@ class CameraGrabber(object):
         self.stopped = True
 
 
-class VideoShower:
-    """
-    Class that continuously shows a frame using a dedicated thread.
-    """
-
-    def __init__(self, frame=None):
-        self.frame = frame
-        self.stopped = False
-
-    def start(self):
-        Thread(target=self.show, args=()).start()
-        return self
-
-    def show(self):
-        while not self.stopped:
-            # TODO NICHT CV2.imgshow, SONDERN
-            # cv2.imshow("Video", self.frame)
-            if cv2.waitKey(1) == ord("q"):
-                self.stopped = True
-
-    def stop(self):
-        self.stopped = True
-
-
-def putIterationsPerSec(frame, iterations_per_sec):
+def putIterationsPerSec(frame, iterations_per_sec, x, y):
     """
     Add iterations per second text to lower-left corner of a frame.
     """
 
     cv2.putText(frame, "{:.0f} FPS".format(iterations_per_sec),
-                (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
+                (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
     return frame
 
 
@@ -143,8 +126,6 @@ Cameras = []
 # checks the first 3 Camera inputs and returns an array containing the available inputs.
 index = 0
 i = 3
-# Ready with loading
-loading.stop()
 
 while i > 0:
     cap = cv2.VideoCapture(index)
@@ -165,7 +146,12 @@ cameraDropDownValue = tk.StringVar()
 cameraDropDownValue.set(Cameras[0])
 
 # Gui erstellen
-dropdowns = tk.Frame(app)
+gui = tk.Frame(app)
+gui.grid(row=0, column=0, pady=2)
+dropdowns = tk.Frame(gui)
+dropdowns.grid(row=0, column=0)
+imageViewer = tk.Frame(gui)
+imageViewer.grid(row=1, column=0, sticky="N")
 monitorDropDown = tk.Frame(dropdowns)
 monitorDropDownLabel = tk.Label(monitorDropDown, text="Zu verwendender Monitor").pack(side=tk.LEFT)
 monitorDropDownMenu = tk.OptionMenu(monitorDropDown, monitorDropDownValue, *Monitors)
@@ -178,15 +164,54 @@ cameraDropDownMenu = tk.OptionMenu(cameraDropDown, cameraDropDownValue, *Cameras
 cameraDropDownMenu.config(width=30)
 cameraDropDownMenu.pack(side=tk.LEFT)
 cameraDropDown.pack(side=tk.BOTTOM)
-dropdowns.pack(side=tk.TOP)
 
 app.geometry('1280x720')
 
 oldMonitorDropDownValue = getMonitorDropDownValue()
 oldCameraDropDownValue = getCameraDropDownValue()
 
-monitor_stream = MonitorGrabber(oldMonitorDropDownValue).start()
-monitor_stream_view = VideoShower(monitor_stream.frame).start()
+
+class VideoShower:
+    """
+    Class that continuously shows a frame using a dedicated thread.
+    """
+
+    def __init__(self, frame=None, width=1280, height=720):
+        self.frame = frame
+        self.stopped = False
+        self.panel = None
+        self.width = width
+        self.height = height
+
+    def start(self):
+        Thread(target=self.show, args=()).start()
+        return self
+
+    def show(self):
+        try:
+            img = cv2.resize(np.array(self.frame), (self.width, self.height), interpolation=cv2.INTER_AREA)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+            img = Image.fromarray(img)
+            self.frame = ImageTk.PhotoImage(img)
+            # if the panel is not None, we need to initialize it
+            if self.panel is None:
+                self.panel = tk.Label(imageViewer, image=self.frame)
+                self.panel.image = self.frame
+                self.panel.pack(side=tk.TOP, padx=10, pady=10)
+
+            # otherwise, simply update the panel
+            else:
+                self.panel.configure(image=self.frame)
+                self.panel.image = self.frame
+        except RuntimeError as e:
+            print("[INFO] caught a RuntimeError")
+
+    def stop(self):
+        self.stopped = True
+
+
+monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
+monitor_stream_view = VideoShower(monitor_stream.frame, 1230, 670)
 cps = CountsPerSec().start()
 
 # Mainloop
@@ -196,6 +221,7 @@ while True:
     if value != oldMonitorDropDownValue:
         oldMonitorDropDownValue = value
         MonitorIndex = value
+        monitor_stream.setSrc(value)
         print("Ausgewählter Monitor: " + str(MonitorIndex))
 
     # Check Camera DropDown Value
@@ -211,11 +237,12 @@ while True:
         break
 
     frame = monitor_stream.frame
-    # frame = putIterationsPerSec(frame, cps.countsPerSec())
-    monitor_stream_view.frame = frame
-    cps.increment()
+    frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
+    # TODO Mach wat mit dem frame
 
-    # TODO Normal Program Loop
+    monitor_stream_view.frame = frame
+    monitor_stream_view.show()
+    cps.increment()
 
     app.update_idletasks()
     app.update()
