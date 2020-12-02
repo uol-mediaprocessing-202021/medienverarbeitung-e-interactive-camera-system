@@ -47,7 +47,7 @@ class MonitorGrabber(object):
         while not self.stopped:
             self.frame = sct.grab(self.src)
             self.frame = cv2.resize(np.array(self.frame), (1280, 720), interpolation=cv2.INTER_AREA)
-            self.frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGRA2BGR)
 
     def stop(self):
         self.stopped = True
