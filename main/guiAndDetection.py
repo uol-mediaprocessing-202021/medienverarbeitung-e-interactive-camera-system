@@ -45,11 +45,14 @@ sct = mss()
 MonitorIndex = 1
 CameraIndex = 0
 
+pressed_key = ""
+
 
 class imageShower(object):
 
-    def __init__(self):
+    def __init__(self, name="Window"):
         self.window = tk.Toplevel(app)
+        self.window.title(name)
         self.panel = None
 
     def show(self, frame, width=640, height=360):
@@ -72,9 +75,9 @@ class imageShower(object):
             print("[INFO] caught a RuntimeError")
 
 
-histogramWindow = imageShower()
-histogramThreshWindow = imageShower()
-mainCameraWithInfo = imageShower()
+histogramWindow = imageShower("Histogram")
+histogramThreshWindow = imageShower("Histogram mit Threshhold")
+mainCameraWithInfo = imageShower("Hauptkamera mit Infos")
 
 
 class CountsPerSec:
@@ -229,12 +232,10 @@ def createMonitorAndCameraDropDownMenu():
     monitorDropDownValue.set(Monitors[0])
 
     # Camera DropdownMenu erstellen
-
     # checks the first 3 Camera inputs and returns an array containing the available inputs.
     index = 0
-    i = 3
 
-    while i > 0:
+    while index <= 3:
         cap = cv2.VideoCapture(index)
         if cap.read()[0]:
             _, img = cap.read()
@@ -242,7 +243,6 @@ def createMonitorAndCameraDropDownMenu():
             Cameras.append("Kamera " + str(index) + ": " + str(w) + "x" + str(h))
             cap.release()
         index += 1
-        i -= 1
 
     cameraDropDownValue = tk.StringVar()
     # TODO EXCEPTION IF NO CAMERA IS PRESENT
@@ -523,6 +523,10 @@ def evaluateFrame(frame, hand_hist):
             drawCirclesOnTraversedPoints(frame, farthestPointList)
 
 
+def key_pressed(event):
+    global pressed_key
+    pressed_key = event.char
+
 def main():
     createMonitorAndCameraDropDownMenu()
     createGUI()
@@ -537,13 +541,16 @@ def main():
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint
+    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key
     isHandHistogramCreated = False
     isImageFlipped = False
 
     sct = mss()
     monitor = sct.monitors[1]
     mon = {'top': 0, 'left': 0, 'width': monitor["width"] / 2, 'height': monitor["height"] / 2, "mon": 0}
+
+    # Bind Key-Press-Event to Window
+    app.bind("<Key>", key_pressed)
 
     while True:
         # Check Monitor Dropdown Value
@@ -572,40 +579,38 @@ def main():
         # Read Camera
         frame = camera_stream.frame
 
-        output = screen
         if shouldCameraBeShown:
             x_offset = 0
             y_offset = 0
-            output[y_offset:y_offset + frame.shape[0], x_offset:x_offset + frame.shape[1]] = frame
+            frame[y_offset:y_offset + frame.shape[0], x_offset:x_offset + frame.shape[1]] = frame
 
         # cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
 
-        # Fingerdetection
-        pressedKey = cv2.waitKey(1)
 
         # flip image if f is pressed
-        if pressedKey & 0xFF == ord('f'):
+        if pressed_key == 'f':
             isImageFlipped = not isImageFlipped
 
         if isImageFlipped:
             frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
-        if pressedKey & 0xFF == ord('z') and not isHandHistogramCreated:
+        if pressed_key == 'z' and not isHandHistogramCreated:
             handHistogram = createHistogramFromMeasuringRectangles(frame)
             isHandHistogramCreated = True
 
         # enlargen or shrink detection radius if + or - is pressed
-        if pressedKey & 0xFF == ord('+'):
+        if pressed_key == '+':
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
 
-        if pressedKey & 0xFF == ord('-'):
+        if pressed_key == '-':
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
 
-        if pressedKey & 0xFF == ord('r') and isHandHistogramCreated:
+        if pressed_key == 'r' and isHandHistogramCreated:
             handHistogram = None
             isHandHistogramCreated = False
 
+        pressed_key = ""
         # TODO ADD RESET FEATURE
 
         if isHandHistogramCreated:
@@ -616,13 +621,9 @@ def main():
             frame = drawMeasuringRectangles(frame)
 
         mainCameraWithInfo.show(rescaleFrame(frame))
-        # cv2.imshow("main_camera_with_info", rescaleFrame(frame))
 
-        if pressedKey == 27:
+        if pressed_key == 27:
             break
-
-        cv2.destroyAllWindows()
-        camera_stream.stream.release()
 
         frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
         monitor_stream_view.frame = frame
