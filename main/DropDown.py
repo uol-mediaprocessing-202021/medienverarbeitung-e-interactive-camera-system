@@ -70,21 +70,28 @@ class MonitorGrabber(object):
 
 class CameraGrabber(object):
 
-    def __init__(self, src):
+    def __init__(self, src, width=1280, height=720):
+        self.width = width
+        self.height = height
         self.stream = cv2.VideoCapture(src)
-        (self.grabbed, self.frame) = self.stream.read()
+        (self.grabbed, img) = self.stream.read()
+        self.frame = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
         self.stopped = False
 
     def start(self):
         Thread(target=self.get, args=()).start()
         return self
 
+    def setSrc(self, src):
+        self.stream = cv2.VideoCapture(src)
+
     def get(self):
         while not self.stopped:
             if not self.grabbed:
                 self.stop()
             else:
-                (self.grabbed, self.frame) = self.stream.read()
+                (self.grabbed, img) = self.stream.read()
+                self.frame = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
 
     def stop(self):
         self.stopped = True
@@ -212,6 +219,9 @@ oldCameraDropDownValue = getCameraDropDownValue()
 
 monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
 monitor_stream_view = VideoShower(monitor_stream.frame, 1230, 670)
+
+camera_stream = CameraGrabber(oldCameraDropDownValue).start()
+
 cps = CountsPerSec().start()
 
 # Mainloop
@@ -229,6 +239,7 @@ while True:
     if value != oldCameraDropDownValue:
         oldCameraDropDownValue = value
         CameraIndex = value
+        camera_stream.setSrc(value)
         print("Ausgewählte Kamera: " + str(CameraIndex))
 
     if monitor_stream.stopped or monitor_stream_view.stopped:
