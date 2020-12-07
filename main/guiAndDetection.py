@@ -28,6 +28,7 @@ countDownWhetherCameraShouldBeShown = 40
 
 # create windows
 app = tk.Tk()
+app.title("Interactive Camerasystem V0.5 BETA")
 app.geometry()
 gui = tk.Frame(app)
 gui.grid(row=0, column=0, pady=2)
@@ -54,8 +55,17 @@ class imageShower(object):
         self.window = tk.Toplevel(app)
         self.window.title(name)
         self.panel = None
+        self.frame = None
 
-    def show(self, frame, width=640, height=360):
+    def update(self, image):
+        self.frame = image
+
+    def show(self, frame=None, width=640, height=360):
+        if frame is None:
+            if self.frame is not None:
+                frame = self.frame
+            else:
+                return
         try:
             img = cv2.resize(np.array(frame), (width, height), interpolation=cv2.INTER_AREA)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
@@ -100,7 +110,7 @@ class CountsPerSec:
 
     def countsPerSec(self):
         elapsed_time = (datetime.now() - self._start_time).total_seconds()
-        if not elapsed_time == 0:
+        if elapsed_time != 0:
             return self._num_occurrences / elapsed_time
         else:
             return 1
@@ -202,7 +212,7 @@ class VideoShower:
         self.stopped = True
 
 
-def putIterationsPerSec(frame, iterations_per_sec, x, y):
+def putIterationsPerSec(frame, iterations_per_sec, x=10, y=30):
     """
     Add iterations per second text to lower-left corner of a frame.
     """
@@ -341,7 +351,7 @@ def maskFrameWithHistogram(frame, hist):
 
     # mask area that matches with the histogram via back projection
     histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 5)
-    histogramWindow.show(histogramMaskBackProjection)
+    histogramWindow.update(histogramMaskBackProjection)
     # cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
 
     maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
@@ -364,7 +374,7 @@ def maskFrameWithHistogram(frame, hist):
 
     thresh = cv2.merge((thresh, thresh, thresh))
 
-    histogramThreshWindow.show(thresh)
+    histogramThreshWindow.update(thresh)
     # cv2.imshow("histogramMaskedFrame_thresh", thresh)
 
     return cv2.bitwise_and(frame, thresh)
@@ -421,10 +431,10 @@ def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
     """Calculates the Common centerpoint of a given list.
     Sums up all X coordinates and divides them by their number"""
 
-    SumOfAllXCoordinates = 0
-    SumOfAllYCoordinates = 0
-
     if pointList is not None:
+        SumOfAllXCoordinates = 0
+        SumOfAllYCoordinates = 0
+
         for i in range(len(pointList)):
             SumOfAllXCoordinates += pointList[i][0]
             SumOfAllYCoordinates += pointList[i][1]
@@ -436,10 +446,8 @@ def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
 
 def isPointInRangeOfOfOtherPoint(givenX1, givenY1, givenX2, givenY2, givenRange):
     """Checks whether Point 1 is within the defined range of Point 2"""
-    if np.abs(np.sqrt(np.square(givenX1 - givenX2) + np.square(
-            givenY1 - givenY2))) <= givenRange:
-        return True
-    return False
+    return np.abs(np.sqrt(np.square(givenX1 - givenX2) + np.square(
+        givenY1 - givenY2))) <= givenRange
 
 
 def resetWhetherCameraShouldBeShownCountdownTimer():
@@ -534,20 +542,17 @@ def main():
     oldMonitorDropDownValue = getMonitorDropDownValue()
     oldCameraDropDownValue = getCameraDropDownValue()
 
+    # Starte die Threads um
     monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
+    camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
     monitor_stream_view = VideoShower(monitor_stream.frame, 1230, 670)
 
-    camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
 
     cps = CountsPerSec().start()
 
     global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key
     isHandHistogramCreated = False
     isImageFlipped = False
-
-    sct = mss()
-    monitor = sct.monitors[1]
-    mon = {'top': 0, 'left': 0, 'width': monitor["width"] / 2, 'height': monitor["height"] / 2, "mon": 0}
 
     # Bind Key-Press-Event to Window
     app.bind("<Key>", key_pressed)
@@ -558,7 +563,7 @@ def main():
         if value != oldMonitorDropDownValue:
             oldMonitorDropDownValue = value
             MonitorIndex = value
-            monitor_stream.setSrc(value)
+            monitor_stream.setSrc(MonitorIndex)
             print("Ausgewählter Monitor: " + str(MonitorIndex))
 
         # Check Camera DropDown Value
@@ -566,7 +571,7 @@ def main():
         if value != oldCameraDropDownValue:
             oldCameraDropDownValue = value
             CameraIndex = value
-            camera_stream.setSrc(value)
+            camera_stream.setSrc(CameraIndex)
             print("Ausgewählte Kamera: " + str(CameraIndex))
 
         if monitor_stream.stopped or monitor_stream_view.stopped:
@@ -579,13 +584,7 @@ def main():
         # Read Camera
         frame = camera_stream.frame
 
-        if shouldCameraBeShown:
-            x_offset = 0
-            y_offset = 0
-            frame[y_offset:y_offset + frame.shape[0], x_offset:x_offset + frame.shape[1]] = frame
-
         # cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
-
 
         # flip image if f is pressed
         if pressed_key == 'f':
@@ -620,7 +619,13 @@ def main():
         else:
             frame = drawMeasuringRectangles(frame)
 
-        mainCameraWithInfo.show(rescaleFrame(frame))
+        if shouldCameraBeShown:
+            x_offset = 0
+            y_offset = 0
+            screen[y_offset:y_offset + frame.shape[0], x_offset:x_offset + frame.shape[1]] = frame
+            frame = screen
+
+        mainCameraWithInfo.update(rescaleFrame(frame))
 
         if pressed_key == 27:
             break
@@ -628,6 +633,12 @@ def main():
         frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
         monitor_stream_view.frame = frame
         monitor_stream_view.show()
+
+        # Update little Windows
+        histogramWindow.show()
+        histogramThreshWindow.show()
+        mainCameraWithInfo.show()
+
         cps.increment()
 
         app.update_idletasks()
