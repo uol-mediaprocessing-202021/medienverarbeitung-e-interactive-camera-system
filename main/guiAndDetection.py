@@ -613,19 +613,22 @@ def main():
         # TODO ADD RESET FEATURE
 
         if isHandHistogramCreated:
-            evaluateFrame(frame, handHistogram)
+            try:
+                evaluateFrame(frame, handHistogram)
+            except RuntimeError as e:
+                print("[INFO] caught a RuntimeError")
 
         # Draw rectangles for Handhistogram capture
         else:
             frame = drawMeasuringRectangles(frame)
 
+        # Update the Camera-Feed
+        mainCameraWithInfo.update(rescaleFrame(frame))
         if shouldCameraBeShown:
             x_offset = 0
             y_offset = 0
             screen[y_offset:y_offset + frame.shape[0], x_offset:x_offset + frame.shape[1]] = frame
             frame = screen
-
-        mainCameraWithInfo.update(rescaleFrame(frame))
 
         if pressed_key == 27:
             break
