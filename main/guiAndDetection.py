@@ -1,3 +1,4 @@
+import copy
 import tkinter as tk
 from datetime import datetime
 from threading import Thread
@@ -124,7 +125,7 @@ class MonitorGrabber(object):
         self.height = height
         img = sct.grab(self.src)
         img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
-        self.frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        self.picture = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
         self.stopped = False
 
     def start(self):
@@ -138,7 +139,7 @@ class MonitorGrabber(object):
         while not self.stopped:
             img = sct.grab(self.src)
             img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
-            self.frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            self.picture = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
     def stop(self):
         self.stopped = True
@@ -151,7 +152,7 @@ class CameraGrabber(object):
         self.height = height
         self.stream = cv2.VideoCapture(src)
         (self.grabbed, img) = self.stream.read()
-        self.frame = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
+        self.picture = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
         self.stopped = False
 
     def start(self):
@@ -167,7 +168,7 @@ class CameraGrabber(object):
                 self.stop()
             else:
                 (self.grabbed, img) = self.stream.read()
-                self.frame = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
+                self.picture = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
 
     def stop(self):
         self.stopped = True
@@ -179,7 +180,7 @@ class VideoShower:
     """
 
     def __init__(self, frame=None, width=1280, height=720):
-        self.frame = frame
+        self.picture = frame
         self.stopped = False
         self.panel = None
         self.width = width
@@ -191,20 +192,20 @@ class VideoShower:
 
     def show(self):
         try:
-            img = cv2.resize(np.array(self.frame), (self.width, self.height), interpolation=cv2.INTER_AREA)
+            img = cv2.resize(np.array(self.picture), (self.width, self.height), interpolation=cv2.INTER_AREA)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
             img = Image.fromarray(img)
-            self.frame = ImageTk.PhotoImage(img)
+            self.picture = ImageTk.PhotoImage(img)
             # if the panel is not None, we need to initialize it
             if self.panel is None:
-                self.panel = tk.Label(imageViewer, image=self.frame)
-                self.panel.image = self.frame
+                self.panel = tk.Label(imageViewer, image=self.picture)
+                self.panel.image = self.picture
                 self.panel.pack(side=tk.TOP)
 
             # otherwise, simply update the panel
             else:
-                self.panel.configure(image=self.frame)
-                self.panel.image = self.frame
+                self.panel.configure(image=self.picture)
+                self.panel.image = self.picture
         except RuntimeError as e:
             print("[INFO] caught a RuntimeError")
 
@@ -425,6 +426,7 @@ def drawCirclesOnTraversedPoints(frame, traversedPoints):
 
             cv2.circle(frame, (XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList),
                        detectionRadiusOfFarthestPointsFromCommonFarthestPoint, [0, 255, 0], 1)
+            return frame
 
 
 def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
@@ -528,7 +530,7 @@ def evaluateFrame(frame, hand_hist):
                 XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
                     farthestPointList)
 
-            drawCirclesOnTraversedPoints(frame, farthestPointList)
+            return drawCirclesOnTraversedPoints(frame, farthestPointList)
 
 
 def key_pressed(event):
@@ -545,7 +547,7 @@ def main():
     # Starte die Threads um
     monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
     camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
-    monitor_stream_view = VideoShower(monitor_stream.frame, 1230, 670)
+    monitor_stream_view = VideoShower(monitor_stream.picture, 1230, 670)
 
 
     cps = CountsPerSec().start()
@@ -580,9 +582,10 @@ def main():
             break
 
         # Read Monitor
-        screen = monitor_stream.frame
+        screen = copy.deepcopy(monitor_stream.picture)
         # Read Camera
-        frame = camera_stream.frame
+        frame = copy.deepcopy(camera_stream.picture)
+        cameraOriginal = copy.deepcopy(camera_stream.picture)
 
         # cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
 
@@ -614,7 +617,7 @@ def main():
 
         if isHandHistogramCreated:
             try:
-                evaluateFrame(frame, handHistogram)
+                frame = evaluateFrame(frame, handHistogram)
             except RuntimeError as e:
                 print("[INFO] caught a RuntimeError")
 
@@ -627,14 +630,15 @@ def main():
         if shouldCameraBeShown:
             x_offset = 0
             y_offset = 0
-            screen[y_offset:y_offset + frame.shape[0], x_offset:x_offset + frame.shape[1]] = frame
+            screen[y_offset:y_offset + cameraOriginal.shape[0],
+            x_offset:x_offset + cameraOriginal.shape[1]] = cameraOriginal
             frame = screen
 
         if pressed_key == 27:
             break
 
         frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-        monitor_stream_view.frame = frame
+        monitor_stream_view.picture = copy.deepcopy(frame)
         monitor_stream_view.show()
 
         # Update little Windows
