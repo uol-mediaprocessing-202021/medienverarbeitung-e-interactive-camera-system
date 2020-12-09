@@ -594,7 +594,7 @@ def main():
             isImageFlipped = not isImageFlipped
 
         if isImageFlipped:
-            frame = cv2.flip(frame, 1)
+            cameraOriginal = cv2.flip(cameraOriginal, 1)
 
         # capture handhistogram if 'z' is pressed
         if pressed_key == 'z' and not isHandHistogramCreated:
@@ -626,19 +626,24 @@ def main():
             frame = drawMeasuringRectangles(frame)
 
         # Update the Camera-Feed
-        mainCameraWithInfo.update(rescaleFrame(frame))
-        if shouldCameraBeShown:
+        if frame is not None:
+            mainCameraWithInfo.update(rescaleFrame(frame))
+        if shouldCameraBeShown and frame is not None:
             x_offset = 0
             y_offset = 0
             screen[y_offset:y_offset + cameraOriginal.shape[0],
             x_offset:x_offset + cameraOriginal.shape[1]] = cameraOriginal
             frame = screen
+            frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
+            monitor_stream_view.picture = copy.deepcopy(frame)
+        else:
+            frame = screen
+            frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
+            monitor_stream_view.picture = copy.deepcopy(frame)
 
         if pressed_key == 27:
             break
 
-        frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-        monitor_stream_view.picture = copy.deepcopy(frame)
         monitor_stream_view.show()
 
         # Update little Windows
