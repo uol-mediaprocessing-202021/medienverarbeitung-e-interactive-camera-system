@@ -426,7 +426,7 @@ def drawCirclesOnTraversedPoints(frame, traversedPoints):
 
             cv2.circle(frame, (XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList),
                        detectionRadiusOfFarthestPointsFromCommonFarthestPoint, [0, 255, 0], 1)
-            return frame
+        return frame
 
 
 def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
@@ -512,23 +512,23 @@ def evaluateFrame(frame, hand_hist):
             defects = cv2.convexityDefects(maxCont, hull)
             farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
             # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+            if farthestPoint is not None:
+                # Build up farthest point list
+                if len(farthestPointList) < 25:
+                    farthestPointList.append(farthestPoint)
+                    cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+                    XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
+                        farthestPointList)
 
-            # Build up farthest point list
-            if len(farthestPointList) < 25:
-                farthestPointList.append(farthestPoint)
-                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
-                    farthestPointList)
-
-            # check if new farthest point is within a given tolerance range
-            elif isPointInRangeOfOfOtherPoint(farthestPoint[0], farthestPoint[1], XCenterPointOfFarthestPointList,
-                                              YCenterPointOfFarthestPointList,
-                                              detectionRadiusOfFarthestPointsFromCommonFarthestPoint):
-                farthestPointList.pop(0)
-                farthestPointList.append(farthestPoint)
-                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
-                    farthestPointList)
+                # check if new farthest point is within a given tolerance range
+                elif isPointInRangeOfOfOtherPoint(farthestPoint[0], farthestPoint[1], XCenterPointOfFarthestPointList,
+                                                  YCenterPointOfFarthestPointList,
+                                                  detectionRadiusOfFarthestPointsFromCommonFarthestPoint):
+                    farthestPointList.pop(0)
+                    farthestPointList.append(farthestPoint)
+                    cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
+                    XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
+                        farthestPointList)
 
             return drawCirclesOnTraversedPoints(frame, farthestPointList)
 
@@ -536,6 +536,7 @@ def evaluateFrame(frame, hand_hist):
 def key_pressed(event):
     global pressed_key
     pressed_key = event.char
+
 
 def main():
     createMonitorAndCameraDropDownMenu()
@@ -548,7 +549,6 @@ def main():
     monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
     camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
     monitor_stream_view = VideoShower(monitor_stream.picture, 1230, 670)
-
 
     cps = CountsPerSec().start()
 
@@ -585,7 +585,7 @@ def main():
         screen = copy.deepcopy(monitor_stream.picture)
         # Read Camera
         frame = copy.deepcopy(camera_stream.picture)
-        cameraOriginal = copy.deepcopy(camera_stream.picture)
+        cameraOriginalFrame = copy.deepcopy(camera_stream.picture)
 
         # cv2.imshow('main_screen_with_PIP_camera_w/_info', screen)
 
@@ -594,7 +594,7 @@ def main():
             isImageFlipped = not isImageFlipped
 
         if isImageFlipped:
-            cameraOriginal = cv2.flip(cameraOriginal, 1)
+            cameraOriginalFrame = cv2.flip(cameraOriginalFrame, 1)
 
         # capture handhistogram if 'z' is pressed
         if pressed_key == 'z' and not isHandHistogramCreated:
@@ -613,7 +613,6 @@ def main():
             isHandHistogramCreated = False
 
         pressed_key = ""
-        # TODO ADD RESET FEATURE
 
         if isHandHistogramCreated:
             try:
@@ -624,6 +623,7 @@ def main():
         # Draw rectangles for Handhistogram capture
         else:
             frame = drawMeasuringRectangles(frame)
+            cameraOriginalFrame = copy.deepcopy(frame)
 
         # Update the Camera-Feed
         if frame is not None:
@@ -631,8 +631,8 @@ def main():
         if shouldCameraBeShown and frame is not None:
             x_offset = 0
             y_offset = 0
-            screen[y_offset:y_offset + cameraOriginal.shape[0],
-            x_offset:x_offset + cameraOriginal.shape[1]] = cameraOriginal
+            screen[y_offset:y_offset + cameraOriginalFrame.shape[0],
+            x_offset:x_offset + cameraOriginalFrame.shape[1]] = cameraOriginalFrame
             frame = screen
             frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
             monitor_stream_view.picture = copy.deepcopy(frame)
