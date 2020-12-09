@@ -9,24 +9,6 @@ from PIL import Image
 from PIL import ImageTk
 from mss import mss
 
-handHistogram = None
-amountOfMeasuringRectangles = 9
-xCoordinatesOfMeasuringRectangles_topLeft = None
-yCoordinatesOfMeasuringRectangles_topLeft = None
-xCoordinatesOfMeasuringRectangles_bottomRight = None
-yCoordinatesOfMeasuringRectangles_bottomRight = None
-
-farthestPointList = []
-XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = None, None
-detectionRadiusOfFarthestPointsFromCommonFarthestPoint = 200
-
-lastCenterPointPositions = []
-XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = None, None
-detectionRadiusOfNewCenterPointsFromCommonCenterPoint = 75
-
-shouldCameraBeShown = True
-countDownWhetherCameraShouldBeShown = 40
-
 # create windows
 app = tk.Tk()
 app.title("Interactive Camerasystem V0.5 BETA")
@@ -213,7 +195,7 @@ class VideoShower:
         self.stopped = True
 
 
-def putIterationsPerSec(frame, iterations_per_sec, x=10, y=30):
+def putIterationsPerSec(frame, iterations_per_sec, x=10, y=50):
     """
     Add iterations per second text to lower-left corner of a frame.
     """
@@ -294,93 +276,6 @@ def getContoursFromMaskedImage(maskedHistogramImage):
     return cont
 
 
-def drawMeasuringRectangles(frame):
-    """Draws 'amountOfMeasuringRectangles' Rectangles on the given frame and returns the modified image"""
-    rows, cols, dontCare = frame.shape
-    global amountOfMeasuringRectangles, xCoordinatesOfMeasuringRectangles_topLeft, yCoordinatesOfMeasuringRectangles_topLeft, xCoordinatesOfMeasuringRectangles_bottomRight, yCoordinatesOfMeasuringRectangles_bottomRight
-
-    # position messure points of hand histogram
-    xCoordinatesOfMeasuringRectangles_topLeft = np.array(
-        [6 * rows / 20, 6 * rows / 20, 6 * rows / 20, 9 * rows / 20, 9 * rows / 20, 9 * rows / 20, 12 * rows / 20,
-         12 * rows / 20, 12 * rows / 20], dtype=np.uint32)
-
-    yCoordinatesOfMeasuringRectangles_topLeft = np.array(
-        [9 * cols / 20, 10 * cols / 20, 11 * cols / 20, 9 * cols / 20, 10 * cols / 20, 11 * cols / 20, 9 * cols / 20,
-         10 * cols / 20, 11 * cols / 20], dtype=np.uint32)
-
-    # define shape of drawn small rectangles | here 10x10
-    xCoordinatesOfMeasuringRectangles_bottomRight = xCoordinatesOfMeasuringRectangles_topLeft + 10
-    yCoordinatesOfMeasuringRectangles_bottomRight = yCoordinatesOfMeasuringRectangles_topLeft + 10
-
-    # draw calculated rectangles
-    for i in range(amountOfMeasuringRectangles):
-        cv2.rectangle(frame,
-                      (yCoordinatesOfMeasuringRectangles_topLeft[i], xCoordinatesOfMeasuringRectangles_topLeft[i]),
-                      (yCoordinatesOfMeasuringRectangles_bottomRight[i],
-                       xCoordinatesOfMeasuringRectangles_bottomRight[i]),
-                      (0, 255, 0), 1)
-
-    return frame
-
-
-def createHistogramFromMeasuringRectangles(frame):
-    """Creates a Histogram from the given frame and measuring Rectangles through combining said rectangles to one Image"""
-    global xCoordinatesOfMeasuringRectangles_topLeft, yCoordinatesOfMeasuringRectangles_topLeft
-
-    # convert cv2 bgr colorspace to hsv colorspace for easier handling
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    # create new blank Region Of Interest matrix/image
-    roi = np.zeros([90, 10, 3], dtype=hsv_frame.dtype)
-
-    # fill ROI with the sample rectangles
-    for i in range(amountOfMeasuringRectangles):
-        roi[i * 10: i * 10 + 10, 0: 10] = hsv_frame[xCoordinatesOfMeasuringRectangles_topLeft[i]:
-                                                    xCoordinatesOfMeasuringRectangles_topLeft[i] + 10,
-                                          yCoordinatesOfMeasuringRectangles_topLeft[i]:
-                                          yCoordinatesOfMeasuringRectangles_topLeft[i] + 10]
-
-    # create a Hand histogram and normalize it
-    hand_hist = cv2.calcHist([roi], [0, 1], None, [180, 256], [0, 180, 0, 256])
-
-    # remove noise and retun
-    return cv2.normalize(hand_hist, hand_hist, 0, 255, cv2.NORM_MINMAX)
-
-
-def maskFrameWithHistogram(frame, hist):
-    """Returns the given frame masked by the given Histogram. The mask is created using Circles drawn over the matching Pixels"""
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    # mask area that matches with the histogram via back projection
-    histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 5)
-    histogramWindow.update(histogramMaskBackProjection)
-    # cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
-
-    maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
-
-    closedBackProjection = cv2.morphologyEx(histogramMaskBackProjection, cv2.MORPH_CLOSE,
-                                            maskingCircle, iterations=2)
-
-    # cv2.imshow("histogramMaskedFrame_closed", closedBackProjection)
-
-    openedBackProjection = cv2.morphologyEx(closedBackProjection, cv2.MORPH_OPEN,
-                                            maskingCircle, iterations=2)
-
-    # cv2.imshow("histogramMaskedFrame_opened", openedBackProjection)
-
-    cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
-
-    ret, thresh = cv2.threshold(openedBackProjection, 1, 255, cv2.THRESH_BINARY)
-
-    # thresh = cv2.dilate(thresh, None, iterations=5)
-
-    thresh = cv2.merge((thresh, thresh, thresh))
-
-    histogramThreshWindow.update(thresh)
-    # cv2.imshow("histogramMaskedFrame_thresh", thresh)
-
-    return cv2.bitwise_and(frame, thresh)
-
-
 def getCenterCoordinatesOfContour(maxContour):
     """Returns the Centercoordinates of a given contour in the shape  X, Y"""
     moment = cv2.moments(maxContour)
@@ -413,22 +308,6 @@ def getFarthestPointFromContour(defects, contour, centroid):
             return None
 
 
-def drawCirclesOnTraversedPoints(frame, traversedPoints):
-    """Draws Circles on the given frame using coordinates contained in traversedPoints. The circles are ever decreasingly in size.
-    Also draws a Circle around the common centerpoint of the traversedPoints."""
-    if traversedPoints is not None:
-        for i in range(len(traversedPoints)):
-
-            radius = int(5 - (i * 15) / 200)
-            if radius < 1:  # check if radius is 0
-                radius = 1
-            cv2.circle(frame, traversedPoints[i], radius, [0, 255, 255], -1)
-
-            cv2.circle(frame, (XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList),
-                       detectionRadiusOfFarthestPointsFromCommonFarthestPoint, [0, 255, 0], 1)
-            return frame
-
-
 def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
     """Calculates the Common centerpoint of a given list.
     Sums up all X coordinates and divides them by their number"""
@@ -452,90 +331,238 @@ def isPointInRangeOfOfOtherPoint(givenX1, givenY1, givenX2, givenY2, givenRange)
         givenY1 - givenY2))) <= givenRange
 
 
-def resetWhetherCameraShouldBeShownCountdownTimer():
-    global countDownWhetherCameraShouldBeShown, shouldCameraBeShown
-    countDownWhetherCameraShouldBeShown = 40
-    shouldCameraBeShown = True
+class FingerDetector(object):
 
+    def __init__(self):
+        self.handHistogram = None
+        self.amountOfMeasuringRectangles = 9
+        self.xCoordinatesOfMeasuringRectangles_topLeft = None
+        self.yCoordinatesOfMeasuringRectangles_topLeft = None
+        self.xCoordinatesOfMeasuringRectangles_bottomRight = None
+        self.yCoordinatesOfMeasuringRectangles_bottomRight = None
 
-def evaluateFrame(frame, hand_hist):
-    """Evaluates the given frame using the given histogram to find the Center of
-    an area that matches with the histogram. Also finds the farthest point within the
-    matching area, to make pointy things e.g. a pointing finger out.
-    These special Areas are Marked with a colored dot"""
-    global shouldCameraBeShown, countDownWhetherCameraShouldBeShown, lastCenterPointPositions, XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
-    maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
+        self.farthestPointList = []
+        self.XCenterPointOfFarthestPointList = None
+        self.YCenterPointOfFarthestPointList = None
+        self.detectionRadiusOfFarthestPointsFromCommonFarthestPoint = 200
 
-    # cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+        self.lastCenterPointPositions = []
+        self.XCenterPointOfCenterPointList = None
+        self.YCenterPointOfCenterPointList = None
+        self.detectionRadiusOfNewCenterPointsFromCommonCenterPoint = 75
 
-    # reduce noise
-    maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
-    maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
+        self.shouldCameraBeShown = True
+        self.countDownWhetherCameraShouldBeShown = 20
+        self.updated = False
+        self.started = False
+        self.frame = None
+        self.output = None
+        self.idle = False
+        self.fps = CountsPerSec()
 
-    # cv2.imshow("evaluateFrame_noiseReducedImage", maskedHistogramImage)
+    def isHandHistogramCreated(self):
+        return self.handHistogram is not None
 
-    contourList = getContoursFromMaskedImage(maskedHistogramImage)
+    def resetHandHistogram(self):
+        self.handHistogram = None
 
-    # check whether the contourList is emtpy AKA no hand is seen in the frame AKA dots all around the frame
-    if contourList:
-        maxCont = max(contourList, key=cv2.contourArea)
+    def start(self):
+        if not self.started:
+            self.started = True
+            self.fps.start()
+            Thread(target=self.loop, args=()).start()
+            return self
 
-        centerOfMaxCont = getCenterCoordinatesOfContour(maxCont)
-        if centerOfMaxCont is not None:
+    def stop(self):
+        self.started = False
 
-            # build up centerPointList
-            if len(lastCenterPointPositions) < 15:
-                lastCenterPointPositions.append(centerOfMaxCont)
-                XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(
-                    lastCenterPointPositions)
-                cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
-                resetWhetherCameraShouldBeShownCountdownTimer()
+    def loop(self):
+        while self.started:
+            if self.updated and not self.idle and self.frame is not None and self.handHistogram is not None:
+                self.idle = True
+                self.evaluateFrame()
+                self.idle = False
+                self.updated = False
 
-            # check whether new centerpoint is within a given tolerance range
-            elif isPointInRangeOfOfOtherPoint(centerOfMaxCont[0], centerOfMaxCont[1], XCenterPointOfCenterPointList,
-                                              YCenterPointOfCenterPointList,
-                                              detectionRadiusOfNewCenterPointsFromCommonCenterPoint):
-                lastCenterPointPositions.append(centerOfMaxCont)
-                lastCenterPointPositions.pop(0)
-                XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(
-                    lastCenterPointPositions)
-                cv2.circle(frame, centerOfMaxCont, 5, [255, 0, 255], -1)
-                resetWhetherCameraShouldBeShownCountdownTimer()
+    def update(self, inputFrame):
+        self.frame = copy.deepcopy(inputFrame)
+        self.updated = True
 
-            else:
-                countDownWhetherCameraShouldBeShown -= 1
-                if countDownWhetherCameraShouldBeShown <= 0:
-                    shouldCameraBeShown = False
+    def getOutput(self):
+        return self.output
 
-        if maxCont is not None:
-            hull = cv2.convexHull(maxCont, returnPoints=False)
-            defects = cv2.convexityDefects(maxCont, hull)
-            farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
-            # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+    def drawMeasuringRectangles(self, frame):
+        """Draws 'amountOfMeasuringRectangles' Rectangles on the given frame and returns the modified image"""
+        rows, cols, dontCare = frame.shape
 
-            # Build up farthest point list
-            if len(farthestPointList) < 25:
-                farthestPointList.append(farthestPoint)
-                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
-                    farthestPointList)
+        # position messure points of hand histogram
+        self.xCoordinatesOfMeasuringRectangles_topLeft = np.array(
+            [6 * rows / 20, 6 * rows / 20, 6 * rows / 20, 9 * rows / 20, 9 * rows / 20, 9 * rows / 20, 12 * rows / 20,
+             12 * rows / 20, 12 * rows / 20], dtype=np.uint32)
 
-            # check if new farthest point is within a given tolerance range
-            elif isPointInRangeOfOfOtherPoint(farthestPoint[0], farthestPoint[1], XCenterPointOfFarthestPointList,
-                                              YCenterPointOfFarthestPointList,
-                                              detectionRadiusOfFarthestPointsFromCommonFarthestPoint):
-                farthestPointList.pop(0)
-                farthestPointList.append(farthestPoint)
-                cv2.circle(frame, farthestPoint, 5, [0, 0, 255], -1)
-                XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
-                    farthestPointList)
+        self.yCoordinatesOfMeasuringRectangles_topLeft = np.array(
+            [9 * cols / 20, 10 * cols / 20, 11 * cols / 20, 9 * cols / 20, 10 * cols / 20, 11 * cols / 20,
+             9 * cols / 20,
+             10 * cols / 20, 11 * cols / 20], dtype=np.uint32)
 
-            return drawCirclesOnTraversedPoints(frame, farthestPointList)
+        # define shape of drawn small rectangles | here 10x10
+        self.xCoordinatesOfMeasuringRectangles_bottomRight = self.xCoordinatesOfMeasuringRectangles_topLeft + 10
+        self.yCoordinatesOfMeasuringRectangles_bottomRight = self.yCoordinatesOfMeasuringRectangles_topLeft + 10
+
+        # draw calculated rectangles
+        for i in range(self.amountOfMeasuringRectangles):
+            cv2.rectangle(frame,
+                          (self.yCoordinatesOfMeasuringRectangles_topLeft[i],
+                           self.xCoordinatesOfMeasuringRectangles_topLeft[i]),
+                          (self.yCoordinatesOfMeasuringRectangles_bottomRight[i],
+                           self.xCoordinatesOfMeasuringRectangles_bottomRight[i]),
+                          (0, 255, 0), 1)
+        self.output = frame
+
+    def createHistogramFromMeasuringRectangles(self, frame):
+        """Creates a Histogram from the given frame and measuring Rectangles through combining said rectangles to one Image"""
+
+        # convert cv2 bgr colorspace to hsv colorspace for easier handling
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # create new blank Region Of Interest matrix/image
+        roi = np.zeros([90, 10, 3], dtype=hsv_frame.dtype)
+
+        # fill ROI with the sample rectangles
+        for i in range(self.amountOfMeasuringRectangles):
+            roi[i * 10: i * 10 + 10, 0: 10] = hsv_frame[self.xCoordinatesOfMeasuringRectangles_topLeft[i]:
+                                                        self.xCoordinatesOfMeasuringRectangles_topLeft[i] + 10,
+                                              self.yCoordinatesOfMeasuringRectangles_topLeft[i]:
+                                              self.yCoordinatesOfMeasuringRectangles_topLeft[i] + 10]
+
+        # create a Hand histogram and normalize it
+        hand_hist = cv2.calcHist([roi], [0, 1], None, [180, 256], [0, 180, 0, 256])
+
+        # remove noise and retun
+        self.handHistogram = cv2.normalize(hand_hist, hand_hist, 0, 255, cv2.NORM_MINMAX)
+
+    def maskFrameWithHistogram(self):
+        """Returns the given frame masked by the given Histogram. The mask is created using Circles drawn over the matching Pixels"""
+        hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
+
+        # mask area that matches with the histogram via back projection
+        histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], self.handHistogram, [0, 180, 0, 256], 5)
+        histogramWindow.update(histogramMaskBackProjection)
+
+        maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+
+        closedBackProjection = cv2.morphologyEx(histogramMaskBackProjection, cv2.MORPH_CLOSE,
+                                                maskingCircle, iterations=2)
+
+        openedBackProjection = cv2.morphologyEx(closedBackProjection, cv2.MORPH_OPEN,
+                                                maskingCircle, iterations=2)
+
+        cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
+
+        ret, thresh = cv2.threshold(openedBackProjection, 1, 255, cv2.THRESH_BINARY)
+
+        # thresh = cv2.dilate(thresh, None, iterations=5)
+
+        thresh = cv2.merge((thresh, thresh, thresh))
+
+        histogramThreshWindow.update(thresh)
+
+        return cv2.bitwise_and(self.frame, thresh)
+
+    def drawCirclesOnTraversedPoints(self, traversedPoints):
+        """Draws Circles on the given frame using coordinates contained in traversedPoints. The circles are ever decreasingly in size.
+        Also draws a Circle around the common centerpoint of the traversedPoints."""
+        if traversedPoints is not None:
+            for i in range(len(traversedPoints)):
+
+                radius = int(5 - (i * 15) / 200)
+                if radius < 1:  # check if radius is 0
+                    radius = 1
+                cv2.circle(self.frame, traversedPoints[i], radius, [0, 255, 255], -1)
+
+                cv2.circle(self.frame, (self.XCenterPointOfFarthestPointList, self.YCenterPointOfFarthestPointList),
+                           self.detectionRadiusOfFarthestPointsFromCommonFarthestPoint, [0, 255, 0], 1)
+            return self.frame
+
+    def resetWhetherCameraShouldBeShownCountdownTimer(self):
+        self.countDownWhetherCameraShouldBeShown = 40
+        self.shouldCameraBeShown = True
+
+    def evaluateFrame(self):
+        """Evaluates the given frame using the given histogram to find the Center of
+        an area that matches with the histogram. Also finds the farthest point within the
+        matching area, to make pointy things e.g. a pointing finger out.
+        These special Areas are Marked with a colored dot"""
+        maskedHistogramImage = self.maskFrameWithHistogram()
+
+        # reduce noise
+        maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
+        maskedHistogramImage = cv2.dilate(maskedHistogramImage, None, iterations=2)
+
+        contourList = getContoursFromMaskedImage(maskedHistogramImage)
+
+        # check whether the contourList is emtpy AKA no hand is seen in the frame AKA dots all around the frame
+        if contourList:
+            maxCont = max(contourList, key=cv2.contourArea)
+
+            centerOfMaxCont = getCenterCoordinatesOfContour(maxCont)
+            if centerOfMaxCont is not None:
+
+                # build up centerPointList
+                if len(self.lastCenterPointPositions) < 15:
+                    self.lastCenterPointPositions.append(centerOfMaxCont)
+                    self.XCenterPointOfCenterPointList, self.YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(
+                        self.lastCenterPointPositions)
+                    cv2.circle(self.frame, centerOfMaxCont, 5, [255, 0, 255], -1)
+                    self.resetWhetherCameraShouldBeShownCountdownTimer()
+
+                # check whether new centerpoint is within a given tolerance range
+                elif isPointInRangeOfOfOtherPoint(centerOfMaxCont[0], centerOfMaxCont[1],
+                                                  self.XCenterPointOfCenterPointList,
+                                                  self.YCenterPointOfCenterPointList,
+                                                  self.detectionRadiusOfNewCenterPointsFromCommonCenterPoint):
+                    self.lastCenterPointPositions.append(centerOfMaxCont)
+                    self.lastCenterPointPositions.pop(0)
+                    self.XCenterPointOfCenterPointList, self.YCenterPointOfCenterPointList = calculateCommonCenterPointOfPointlist(
+                        self.lastCenterPointPositions)
+                    cv2.circle(self.frame, centerOfMaxCont, 5, [255, 0, 255], -1)
+                    self.resetWhetherCameraShouldBeShownCountdownTimer()
+
+                else:
+                    self.countDownWhetherCameraShouldBeShown -= 1
+                    if self.countDownWhetherCameraShouldBeShown <= 0:
+                        self.shouldCameraBeShown = False
+
+            if maxCont is not None:
+                hull = cv2.convexHull(maxCont, returnPoints=False)
+                defects = cv2.convexityDefects(maxCont, hull)
+                farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
+                # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+
+                # Build up farthest point list
+                if len(self.farthestPointList) < 25:
+                    self.farthestPointList.append(farthestPoint)
+                    cv2.circle(self.frame, farthestPoint, 5, [0, 0, 255], -1)
+                    self.XCenterPointOfFarthestPointList, self.YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
+                        self.farthestPointList)
+
+                # check if new farthest point is within a given tolerance range
+                elif isPointInRangeOfOfOtherPoint(farthestPoint[0], farthestPoint[1],
+                                                  self.XCenterPointOfFarthestPointList,
+                                                  self.YCenterPointOfFarthestPointList,
+                                                  self.detectionRadiusOfFarthestPointsFromCommonFarthestPoint):
+                    self.farthestPointList.pop(0)
+                    self.farthestPointList.append(farthestPoint)
+                    cv2.circle(self.frame, farthestPoint, 5, [0, 0, 255], -1)
+                    self.XCenterPointOfFarthestPointList, self.YCenterPointOfFarthestPointList = calculateCommonCenterPointOfPointlist(
+                        self.farthestPointList)
+
+                self.output = self.drawCirclesOnTraversedPoints(self.farthestPointList)
 
 
 def key_pressed(event):
     global pressed_key
     pressed_key = event.char
+
 
 def main():
     createMonitorAndCameraDropDownMenu()
@@ -548,12 +575,11 @@ def main():
     monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
     camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
     monitor_stream_view = VideoShower(monitor_stream.picture, 1230, 670)
-
+    fingerDetector = FingerDetector().start()
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key
-    isHandHistogramCreated = False
+    global pressed_key
     isImageFlipped = False
 
     # Bind Key-Press-Event to Window
@@ -597,52 +623,44 @@ def main():
             cameraOriginal = cv2.flip(cameraOriginal, 1)
 
         # capture handhistogram if 'z' is pressed
-        if pressed_key == 'z' and not isHandHistogramCreated:
-            handHistogram = createHistogramFromMeasuringRectangles(frame)
-            isHandHistogramCreated = True
+        if pressed_key == 'z' and not fingerDetector.isHandHistogramCreated():
+            fingerDetector.createHistogramFromMeasuringRectangles(frame)
 
         # enlargen or shrink detection radius if + or - is pressed
         if pressed_key == '+':
-            detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
+            fingerDetector.detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
 
         if pressed_key == '-':
-            detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
+            fingerDetector.detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
 
-        if pressed_key == 'r' and isHandHistogramCreated:
-            handHistogram = None
-            isHandHistogramCreated = False
+        if pressed_key == 'r' and fingerDetector.isHandHistogramCreated():
+            fingerDetector.resetHandHistogram()
+
+        if pressed_key == 'q':
+            camera_stream.stop()
+            monitor_stream.stop()
+            fingerDetector.stop()
+            exit()
 
         pressed_key = ""
-        # TODO ADD RESET FEATURE
 
-        if isHandHistogramCreated:
-            try:
-                frame = evaluateFrame(frame, handHistogram)
-            except RuntimeError as e:
-                print("[INFO] caught a RuntimeError")
+        if fingerDetector.isHandHistogramCreated() and not fingerDetector.idle:
+            fingerDetector.update(frame)
 
         # Draw rectangles for Handhistogram capture
         else:
-            frame = drawMeasuringRectangles(frame)
+            fingerDetector.drawMeasuringRectangles(frame)
 
         # Update the Camera-Feed
-        if frame is not None:
-            mainCameraWithInfo.update(rescaleFrame(frame))
-        if shouldCameraBeShown and frame is not None:
+        if fingerDetector.getOutput() is not None:
+            mainCameraWithInfo.update(fingerDetector.getOutput())
+        if fingerDetector.shouldCameraBeShown and fingerDetector.getOutput() is not None:
             x_offset = 0
             y_offset = 0
             screen[y_offset:y_offset + cameraOriginal.shape[0],
             x_offset:x_offset + cameraOriginal.shape[1]] = cameraOriginal
-            frame = screen
-            frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-            monitor_stream_view.picture = copy.deepcopy(frame)
-        else:
-            frame = screen
-            frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-            monitor_stream_view.picture = copy.deepcopy(frame)
-
-        if pressed_key == 27:
-            break
+        screen = putIterationsPerSec(screen, cps.countsPerSec(), 10, 700)
+        monitor_stream_view.picture = screen
 
         monitor_stream_view.show()
 
