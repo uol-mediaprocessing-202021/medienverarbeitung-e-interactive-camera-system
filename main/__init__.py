@@ -50,24 +50,42 @@ CameraIndex = 0
 pressed_key = ""
 
 
-class imageShower(object):
+class ImageShower(object):
+    """Creates another TKInter Window and shows the given Image
+    """
 
     def __init__(self, name="Window"):
+        """
+        Initialize a new ImageShower, by creating another TKInter Window and set its Name
+        :param name:
+        """
         self.window = tk.Toplevel(app)
         self.window.title(name)
         self.panel = None
         self.frame = None
 
     def update(self, image):
+        """
+        Update the Image witch will be shown in this Window
+        :param image: The Image as cv2 Image in BGR
+        """
         self.frame = image
 
     def show(self, frame=None, width=640, height=360):
+        """
+        Shows the Image, witch has been already set by the Update Method or is given by an Optional Parameter
+        :param frame: The Optional cv2 Image in BGR
+        :param width: The Optional scaled Width of the Image
+        :param height: The Optional scaled Height of the Image
+        :return: None if no Image is given
+        """
         if frame is None:
             if self.frame is not None:
                 frame = self.frame
             else:
                 return
         try:
+            # Resize and Convert cv2 Image to TKInter Image
             img = cv2.resize(np.array(frame), (width, height), interpolation=cv2.INTER_AREA)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
             img = Image.fromarray(img)
@@ -86,9 +104,10 @@ class imageShower(object):
             print("[INFO] caught a RuntimeError")
 
 
-histogramWindow = imageShower("Histogram")
-histogramThreshWindow = imageShower("Histogram mit Threshhold")
-mainCameraWithInfo = imageShower("Hauptkamera mit Infos")
+# Create Optional Windows for Debugging and Additional Infos
+histogramWindow = ImageShower("Histogram")
+histogramThreshWindow = ImageShower("Histogram mit Threshhold")
+mainCameraWithInfo = ImageShower("Hauptkamera mit Infos")
 
 
 class CountsPerSec:
@@ -99,17 +118,31 @@ class CountsPerSec:
     """
 
     def __init__(self):
+        """
+        Sets the Starttime and Frame-Counts to 0
+        """
         self._start_time = None
         self._num_occurrences = 0
 
     def start(self):
+        """
+        Starts the Timer by saving the Current Time
+        :return: Optional: The Own Object to create, start the Timer and save the Object at the same Time
+        """
         self._start_time = datetime.now()
         return self
 
     def increment(self):
+        """
+        Adds One to the Frame Counter
+        """
         self._num_occurrences += 1
 
     def countsPerSec(self):
+        """
+        Calculates the Frames per Second
+        :return: The Frames per Second or 1 if time was to low
+        """
         elapsed_time = (datetime.now() - self._start_time).total_seconds()
         if elapsed_time != 0:
             return self._num_occurrences / elapsed_time
@@ -118,51 +151,98 @@ class CountsPerSec:
 
 
 class MonitorGrabber(object):
+    """
+    Reads the Current Screen in another Thread and Stores it for easy Access
+    """
 
     def __init__(self, src=1, width=1280, height=720):
+        """
+        Initialize a new MonitorGrabber
+        :param src: MonitorIndex from mss
+        :param width: Scaled Output Image width
+        :param height: Scaled Output Image hight
+        """
         self.setSrc(src)
         self.width = width
         self.height = height
+
+        # Grab Monitor Image, Resize, Convert and Store it
         img = sct.grab(self.src)
         img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
         self.picture = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
         self.stopped = False
 
     def start(self):
+        """
+        Starts another Thread for its own get-Method, to grab the Image out of Mainloop
+        :return:  Optional: The Own Object to create, start the Thread and save the Object at the same Time
+        """
         Thread(target=self.get, args=()).start()
         return self
 
     def setSrc(self, src):
+        """
+        Re-Sets the Monitor Input Source Index of mss
+        :param src: The new Monitor Index
+        """
         self.src = sct.monitors[src]
 
     def get(self):
+        """
+        Grabs the current Monitor Image, Resize, convert and stores it
+        """
         while not self.stopped:
             img = sct.grab(self.src)
             img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
             self.picture = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
     def stop(self):
+        """
+        Stops the MonitorGrabber-Get-Thread started by the start-Method
+        """
         self.stopped = True
 
 
 class CameraGrabber(object):
+    """
+    Reads the Current Camera-feed in another Thread and Stores it for easy Access
+    """
 
     def __init__(self, src, width=1280, height=720):
+        """
+        Initialize a new CameraGrabber
+        :param src: CameraIndex from mss
+        :param width: Scaled Output Image width
+        :param height: Scaled Output Image hight
+        """
         self.width = width
         self.height = height
+
+        # Grab Camera Image, Resize, Convert and Store it
         self.stream = cv2.VideoCapture(src)
         (self.grabbed, img) = self.stream.read()
         self.picture = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
         self.stopped = False
 
     def start(self):
+        """
+        Starts another Thread for its own get-Method, to grab the Image out of Mainloop
+        :return:  Optional: The Own Object to create, start the Thread and save the Object at the same Time
+        """
         Thread(target=self.get, args=()).start()
         return self
 
     def setSrc(self, src):
+        """
+        Re-Sets the Camera Input Source Index of mss
+        :param src: The new Camera Index
+        """
         self.stream = cv2.VideoCapture(src)
 
     def get(self):
+        """
+        Grabs the current Camera Image, Resize and stores it
+        """
         while not self.stopped:
             if not self.grabbed:
                 self.stop()
@@ -171,45 +251,9 @@ class CameraGrabber(object):
                 self.picture = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
 
     def stop(self):
-        self.stopped = True
-
-
-class VideoShower:
-    """
-    Class that continuously shows a frame using a dedicated thread.
-    """
-
-    def __init__(self, frame=None, width=1280, height=720):
-        self.picture = frame
-        self.stopped = False
-        self.panel = None
-        self.width = width
-        self.height = height
-
-    def start(self):
-        Thread(target=self.show, args=()).start()
-        return self
-
-    def show(self):
-        try:
-            img = cv2.resize(np.array(self.picture), (self.width, self.height), interpolation=cv2.INTER_AREA)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
-            img = Image.fromarray(img)
-            self.picture = ImageTk.PhotoImage(img)
-            # if the panel is not None, we need to initialize it
-            if self.panel is None:
-                self.panel = tk.Label(imageViewer, image=self.picture)
-                self.panel.image = self.picture
-                self.panel.pack(side=tk.TOP)
-
-            # otherwise, simply update the panel
-            else:
-                self.panel.configure(image=self.picture)
-                self.panel.image = self.picture
-        except RuntimeError as e:
-            print("[INFO] caught a RuntimeError")
-
-    def stop(self):
+        """
+        Stops the CameraGrabber-Get-Thread started by the start-Method
+        """
         self.stopped = True
 
 
@@ -224,17 +268,30 @@ def putIterationsPerSec(frame, iterations_per_sec, x=10, y=30):
 
 
 def getCameraDropDownValue():
+    """
+    Reads the selected Camera in the Dropdown Menue and parses it
+    :return: The Camera Index based on cv2.VideoCapture()
+    """
     return int(cameraDropDownValue.get()[7:cameraDropDownValue.get().index(":")])
 
 
 def getMonitorDropDownValue():
+    """
+    Reads the selected Monitor in the Dropdown Menue and parses it
+    :return: The Monitor Index based on mss
+    """
     return int(monitorDropDownValue.get()[8:monitorDropDownValue.get().index(":")])
 
 
 def createMonitorAndCameraDropDownMenu():
-    # Monitor Dropdown erstellen
+    """
+    Creates the Dropdown Menu for the Gui by checking the Avaiable Displays and Camera Inputs
+    :return: None
+    """
+    # Create Monitor Dropdown
     global monitorDropDownValue, cameraDropDownValue, Monitors, Cameras
 
+    # Grabing a Frame from each Monitor to Display Screen Resolution for each Monitor in Menu
     for mon in range(1, len(sct.monitors)):
         monitor = sct.monitors[mon]
         Monitors.append("Monitor " + str(mon) + ": " + str(monitor["width"]) + "x" + str(monitor["height"]))
@@ -242,7 +299,7 @@ def createMonitorAndCameraDropDownMenu():
     monitorDropDownValue = tk.StringVar()
     monitorDropDownValue.set(Monitors[0])
 
-    # Camera DropdownMenu erstellen
+    # Create Camera DropdownMenu
     # checks the first 3 Camera inputs and returns an array containing the available inputs.
     index = 0
 
@@ -532,6 +589,26 @@ def evaluateFrame(frame, hand_hist):
 
             return drawCirclesOnTraversedPoints(frame, farthestPointList)
 
+def zoomOntoPointedRegion(frame):
+    """Zooms into the given Frame at the tip of the shown finger. This is achieved by drawing a vector from the
+    centerpoint of the centerpointlist to the centerpoint of the farthestpointlist"""
+    global XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
+
+    vectorToNewFrameCenter = round((XCenterPointOfFarthestPointList - XCenterPointOfCenterPointList)*1.5) , round((YCenterPointOfFarthestPointList - YCenterPointOfCenterPointList) *1.5)
+
+    xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfCenterPointList + vectorToNewFrameCenter[0], YCenterPointOfCenterPointList + vectorToNewFrameCenter[1]
+
+    #determine whether the vector is still in frame
+    #shorten it otherwise
+
+    if frame.shape[1] < xCenterOfNewFrame or 0 > xCenterOfNewFrame or frame.shape[0] < yCenterOfNewFrame or 0 > yCenterOfNewFrame:
+
+        pass
+
+
+
+
+
 
 def key_pressed(event):
     global pressed_key
@@ -548,7 +625,7 @@ def main():
     # Starte die Threads um
     monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
     camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
-    monitor_stream_view = VideoShower(monitor_stream.picture, 1230, 670)
+    monitor_stream_view = ImageShower(monitor_stream.picture)
 
     cps = CountsPerSec().start()
 
@@ -617,6 +694,9 @@ def main():
         if isHandHistogramCreated:
             try:
                 frame = evaluateFrame(frame, handHistogram)
+                #zoom onto the pointed region
+                frame = zoomOntoPointedRegion(frame)
+
             except RuntimeError as e:
                 print("[INFO] caught a RuntimeError")
 
@@ -633,18 +713,14 @@ def main():
             y_offset = 0
             screen[y_offset:y_offset + cameraOriginalFrame.shape[0],
             x_offset:x_offset + cameraOriginalFrame.shape[1]] = cameraOriginalFrame
-            frame = screen
-            frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-            monitor_stream_view.picture = copy.deepcopy(frame)
-        else:
-            frame = screen
-            frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
-            monitor_stream_view.picture = copy.deepcopy(frame)
+        frame = screen
+        frame = putIterationsPerSec(frame, cps.countsPerSec(), 10, 700)
+        monitor_stream_view.update(copy.deepcopy(frame))
 
         if pressed_key == 27:
             break
 
-        monitor_stream_view.show()
+        monitor_stream_view.show(1230, 670)
 
         # Update little Windows
         histogramWindow.show()
