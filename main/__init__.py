@@ -589,25 +589,51 @@ def evaluateFrame(frame, hand_hist):
 
             return drawCirclesOnTraversedPoints(frame, farthestPointList)
 
-def zoomOntoPointedRegion(frame):
+
+def zoomOntoPointedRegion(frame, zoomFactor):
     """Zooms into the given Frame at the tip of the shown finger. This is achieved by drawing a vector from the
     centerpoint of the centerpointlist to the centerpoint of the farthestpointlist"""
     global XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
 
-    vectorToNewFrameCenter = round((XCenterPointOfFarthestPointList - XCenterPointOfCenterPointList)*1.5) , round((YCenterPointOfFarthestPointList - YCenterPointOfCenterPointList) *1.5)
+    vectorToNewFrameCenter = round((XCenterPointOfFarthestPointList - XCenterPointOfCenterPointList) * 1.5), round(
+        (YCenterPointOfFarthestPointList - YCenterPointOfCenterPointList) * 1.5)
 
-    xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfCenterPointList + vectorToNewFrameCenter[0], YCenterPointOfCenterPointList + vectorToNewFrameCenter[1]
+    xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfCenterPointList + vectorToNewFrameCenter[
+        0], YCenterPointOfCenterPointList + vectorToNewFrameCenter[1]
 
-    #determine whether the vector is still in frame
-    #shorten it otherwise
+    # determine whether the vector is still in frame
+    # take centerpoint of farthestpointlist alternatively
 
-    if frame.shape[1] < xCenterOfNewFrame or 0 > xCenterOfNewFrame or frame.shape[0] < yCenterOfNewFrame or 0 > yCenterOfNewFrame:
+    if frame.shape[1] < xCenterOfNewFrame or 0 > xCenterOfNewFrame or frame.shape[
+        0] < yCenterOfNewFrame or 0 > yCenterOfNewFrame:
+        xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList
 
-        pass
+    # determine shown rectangle
+    leftX, rightX = xCenterOfNewFrame - frame.shape[0] // zoomFactor // 2, xCenterOfNewFrame + frame.shape[
+        0] // zoomFactor // 2
+    topY, bottomY = yCenterOfNewFrame - frame.shape[1] // zoomFactor // 2, yCenterOfNewFrame + frame.shape[
+        1] // zoomFactor // 2
 
+    # determine whether shown rectangle is in frame
+    # translate it otherwise
 
+    if 0 > leftX or 0 > rightX:
+        translateAmount = leftX
+        leftX, rightX = leftX + translateAmount, rightX + translateAmount
+    elif frame.shape[0] < leftX or frame.shape[0] < rightX:
+        translateAmount = frame.shape[0] - rightX
+        leftX, rightX = leftX + translateAmount, rightX + translateAmount
 
+    if 0 > bottomY or 0 > topY:
+        translateAmount = bottomY
+        bottomY, topY = bottomY + translateAmount, topY + translateAmount
+    elif frame.shape[1] < bottomY or frame.shape[1] < topY:
+        translateAmount = frame.shape[1] - topY
+        bottomY, topY = bottomY + translateAmount, topY + translateAmount
 
+    frame = frame[topY:bottomY, leftX:rightX]
+
+    return frame
 
 
 def key_pressed(event):
@@ -694,8 +720,8 @@ def main():
         if isHandHistogramCreated:
             try:
                 frame = evaluateFrame(frame, handHistogram)
-                #zoom onto the pointed region
-                frame = zoomOntoPointedRegion(frame)
+                # zoom onto the pointed region
+                frame = zoomOntoPointedRegion(frame, 1.5)
 
             except RuntimeError as e:
                 print("[INFO] caught a RuntimeError")
