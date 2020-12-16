@@ -683,11 +683,6 @@ def main():
             camera_stream.setSrc(CameraIndex)
             print("Ausgewählte Kamera: " + str(CameraIndex))
 
-        if monitor_stream.stopped or monitor_stream_view.stopped:
-            monitor_stream_view.stop()
-            monitor_stream.stop()
-            break
-
         # Read Monitor
         screen = copy.deepcopy(monitor_stream.picture)
         # Read Camera
