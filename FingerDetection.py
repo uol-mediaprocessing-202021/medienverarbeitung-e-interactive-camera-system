@@ -22,7 +22,7 @@ countDownWhetherCameraShouldBeShown = 40
 
 
 def returnCameraIndexes():
-    """ checks the first 10 Camerainputs and returns an array containing the available inputs."""
+    """ checks the first 10 Camera-Inputs and returns an array containing the available inputs."""
     arr = []
     for index, _ in enumerate(range(10, 0, -1)):
         cap = cv2.VideoCapture(index)
@@ -87,6 +87,7 @@ def createHistogramFromMeasuringRectangles(frame):
 
     # fill ROI with the sample rectangles
     for i in range(amountOfMeasuringRectangles):
+        # noinspection PyUnresolvedReferences
         roi[i * 10: i * 10 + 10, 0: 10] = hsv_frame[xCoordinatesOfMeasuringRectangles_topLeft[i]:
                                                     xCoordinatesOfMeasuringRectangles_topLeft[i] + 10,
                                           yCoordinatesOfMeasuringRectangles_topLeft[i]:
@@ -107,19 +108,17 @@ def maskFrameWithHistogram(frame, hist):
     histogramMaskBackProjection = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 5)
     cv2.imshow("histogramMaskedFrame_histogramBackProjection", histogramMaskBackProjection)
 
-
     maskingCircle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
-
 
     closedBackProjection = cv2.morphologyEx(histogramMaskBackProjection, cv2.MORPH_CLOSE,
                                             maskingCircle, iterations=2)
 
-    #cv2.imshow("histogramMaskedFrame_closed", closedBackProjection)
+    # cv2.imshow("histogramMaskedFrame_closed", closedBackProjection)
 
     openedBackProjection = cv2.morphologyEx(closedBackProjection, cv2.MORPH_OPEN,
                                             maskingCircle, iterations=2)
 
-    #cv2.imshow("histogramMaskedFrame_opened", openedBackProjection)
+    # cv2.imshow("histogramMaskedFrame_opened", openedBackProjection)
 
     cv2.filter2D(histogramMaskBackProjection, -1, maskingCircle, histogramMaskBackProjection)
 
@@ -185,10 +184,10 @@ def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
     """Calculates the Common centerpoint of a given list.
     Sums up all X coordinates and divides them by their number"""
 
-    SumOfAllXCoordinates = 0
-    SumOfAllYCoordinates = 0
-
     if pointList is not None:
+        SumOfAllXCoordinates = 0
+        SumOfAllYCoordinates = 0
+
         for i in range(len(pointList)):
             SumOfAllXCoordinates += pointList[i][0]
             SumOfAllYCoordinates += pointList[i][1]
@@ -200,10 +199,8 @@ def calculateCommonCenterPointOfPointlist(pointList) -> (int, int):
 
 def isPointInRangeOfOfOtherPoint(givenX1, givenY1, givenX2, givenY2, givenRange):
     """Checks whether Point 1 is within the defined range of Point 2"""
-    if np.abs(np.sqrt(np.square(givenX1 - givenX2) + np.square(
-            givenY1 - givenY2))) <= givenRange:
-        return True
-    return False
+    return np.abs(np.sqrt(np.square(givenX1 - givenX2) + np.square(
+        givenY1 - givenY2))) <= givenRange
 
 
 def resetWhetherCameraShouldBeShownCountdownTimer():
@@ -301,6 +298,7 @@ def main():
     while capture.isOpened():
         # Read Monitor
         screen = sct.grab(monitor)
+        # noinspection PyTypeChecker
         screen = cv2.resize(np.array(screen), (int(mon["width"]), int(mon["height"])), interpolation=cv2.INTER_AREA)
         screen = cv2.cvtColor(screen, cv2.COLOR_BGRA2BGR)
         # Read Camera

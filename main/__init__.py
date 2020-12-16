@@ -168,6 +168,7 @@ class MonitorGrabber(object):
 
         # Grab Monitor Image, Resize, Convert and Store it
         img = sct.grab(self.src)
+        # noinspection PyTypeChecker
         img = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
         self.picture = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
         self.stopped = False
@@ -267,6 +268,7 @@ def putIterationsPerSec(frame, iterations_per_sec, x=10, y=30):
     return frame
 
 
+# noinspection PyUnresolvedReferences
 def getCameraDropDownValue():
     """
     Reads the selected Camera in the Dropdown Menue and parses it
@@ -275,6 +277,7 @@ def getCameraDropDownValue():
     return int(cameraDropDownValue.get()[7:cameraDropDownValue.get().index(":")])
 
 
+# noinspection PyUnresolvedReferences
 def getMonitorDropDownValue():
     """
     Reads the selected Monitor in the Dropdown Menue and parses it
@@ -318,29 +321,26 @@ def createMonitorAndCameraDropDownMenu():
 
 
 def createGUI():
+    """
+    Creates the Gui with TKInter Elements
+    :return: None
+    """
     # Gui erstellen
     dropdowns = tk.Frame(gui)
     dropdowns.grid(row=0, column=0)
     monitorDropDown = tk.Frame(dropdowns)
-    monitorDropDownLabel = tk.Label(monitorDropDown, text="Zu verwendender Monitor").pack(side=tk.LEFT)
+    tk.Label(monitorDropDown, text="Zu verwendender Monitor").pack(side=tk.LEFT)
     monitorDropDownMenu = tk.OptionMenu(monitorDropDown, monitorDropDownValue, *Monitors)
     monitorDropDownMenu.config(width=30)
     monitorDropDownMenu.pack(side=tk.LEFT)
     monitorDropDown.pack(side=tk.LEFT)
     cameraDropDown = tk.Frame(dropdowns)
-    cameraDropDownLabel = tk.Label(cameraDropDown, text="Zu verwendende Kamera").pack(side=tk.LEFT)
+    tk.Label(cameraDropDown, text="Zu verwendende Kamera").pack(side=tk.LEFT)
     cameraDropDownMenu = tk.OptionMenu(cameraDropDown, cameraDropDownValue, *Cameras)
     cameraDropDownMenu.config(width=30)
     cameraDropDownMenu.pack(side=tk.LEFT)
     cameraDropDown.pack(side=tk.BOTTOM)
     app.geometry('1280x720')
-
-
-def rescaleFrame(frame, wpercent=130, hpercent=130):
-    """Rescales the frame to a given percentage"""
-    width = int(frame.shape[1] * wpercent / 100)
-    height = int(frame.shape[0] * hpercent / 100)
-    return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
 
 
 def getContoursFromMaskedImage(maskedHistogramImage):
@@ -510,6 +510,10 @@ def isPointInRangeOfOfOtherPoint(givenX1, givenY1, givenX2, givenY2, givenRange)
 
 
 def resetWhetherCameraShouldBeShownCountdownTimer():
+    """
+    Resets the Counter, witch defines weather the Camera-Input should be shown
+    :return: None
+    """
     global countDownWhetherCameraShouldBeShown, shouldCameraBeShown
     countDownWhetherCameraShouldBeShown = 40
     shouldCameraBeShown = True
@@ -733,7 +737,7 @@ def main():
 
         # Update the Camera-Feed
         if frame is not None:
-            mainCameraWithInfo.update(rescaleFrame(frame))
+            mainCameraWithInfo.update(frame)
         if shouldCameraBeShown and frame is not None:
             x_offset = 0
             y_offset = 0
