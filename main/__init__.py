@@ -28,6 +28,7 @@ shouldCameraBeShown = True
 countDownWhetherCameraShouldBeShown = 40
 
 zoomValue = 1.0
+maxZoomValue = 3.0
 
 # create windows
 app = tk.Tk()
@@ -666,7 +667,7 @@ def main():
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, zoomValue
+    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, zoomValue, detectionRadiusOfNewCenterPointsFromCommonCenterPoint
     isHandHistogramCreated = False
     isImageFlipped = False
 
@@ -704,6 +705,7 @@ def main():
 
         if isImageFlipped:
             cameraOriginalFrame = cv2.flip(cameraOriginalFrame, 1)
+            frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
         if pressed_key == 'z' and not isHandHistogramCreated:
@@ -713,27 +715,39 @@ def main():
         # enlargen or shrink detection radius if + or - is pressed
         if pressed_key == '+':
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
+            detectionRadiusOfNewCenterPointsFromCommonCenterPoint += 10
 
-        if pressed_key == '-':
+        if pressed_key == '-' and (detectionRadiusOfFarthestPointsFromCommonFarthestPoint > 10 and detectionRadiusOfNewCenterPointsFromCommonCenterPoint > 10):
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
+            detectionRadiusOfNewCenterPointsFromCommonCenterPoint -= 10
 
         if pressed_key == 'r' and isHandHistogramCreated:
             handHistogram = None
             isHandHistogramCreated = False
 
-        if pressed_key == 'a' and isHandHistogramCreated and zoomValue<2.0:
+        if pressed_key == 'a' and isHandHistogramCreated and zoomValue<maxZoomValue:
             zoomValue = zoomValue + 0.1
 
-        if pressed_key == 'y' and  zoomValue>0.1:
+        if pressed_key == 'y' and  zoomValue>1:
             zoomValue = zoomValue - 0.1
+
+        # fix eventual problems
+        if zoomValue> maxZoomValue :
+            zoomValue = maxZoomValue
+        elif zoomValue < 1:
+            zoomValue = 1
 
         pressed_key = ""
 
-        if isHandHistogramCreated:
+        if isHandHistogramCreated and frame is not None and cameraOriginalFrame is not None:
             try:
                 frame = evaluateFrame(frame, handHistogram)
                 # zoom onto the pointed region
-                frame = zoomOntoPointedRegion(frame, zoomValue)
+                #frame = zoomOntoPointedRegion(frame, zoomValue)
+
+                cameraOriginalFrame = zoomOntoPointedRegion(cameraOriginalFrame, zoomValue)
+                cameraOriginalFrame = cv2.resize(cameraOriginalFrame, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
+                #self.picture = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
 
             except RuntimeError as e:
                 print("[INFO] caught a RuntimeError")
