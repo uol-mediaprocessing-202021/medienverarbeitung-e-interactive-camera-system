@@ -54,13 +54,17 @@ class ImageShower(object):
     """Creates another TKInter Window and shows the given Image
     """
 
-    def __init__(self, name="Window"):
+    def __init__(self, name="Window", window=None):
         """
         Initialize a new ImageShower, by creating another TKInter Window and set its Name
         :param name:
         """
-        self.window = tk.Toplevel(app)
-        self.window.title(name)
+        if window is None:
+            self.window = tk.Toplevel(app)
+            self.window.title(name)
+        else:
+            self.window = window
+
         self.panel = None
         self.frame = None
 
@@ -71,7 +75,7 @@ class ImageShower(object):
         """
         self.frame = image
 
-    def show(self, frame=None, width=640, height=360):
+    def show(self, width=640, height=360):
         """
         Shows the Image, witch has been already set by the Update Method or is given by an Optional Parameter
         :param frame: The Optional cv2 Image in BGR
@@ -79,14 +83,11 @@ class ImageShower(object):
         :param height: The Optional scaled Height of the Image
         :return: None if no Image is given
         """
-        if frame is None:
-            if self.frame is not None:
-                frame = self.frame
-            else:
-                return
+        if self.frame is None:
+            return
         try:
             # Resize and Convert cv2 Image to TKInter Image
-            img = cv2.resize(np.array(frame), (width, height), interpolation=cv2.INTER_AREA)
+            img = cv2.resize(np.array(self.frame), (width, height), interpolation=cv2.INTER_AREA)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
             img = Image.fromarray(img)
             img = ImageTk.PhotoImage(img)
@@ -100,8 +101,10 @@ class ImageShower(object):
             else:
                 self.panel.configure(image=img)
                 self.panel.image = img
-        except RuntimeError as e:
+        except RuntimeError:
             print("[INFO] caught a RuntimeError")
+        except cv2.error:
+            print("[DEBUG] Bildfehler! (Format richtig?)")
 
 
 # Create Optional Windows for Debugging and Additional Infos
@@ -635,7 +638,7 @@ def zoomOntoPointedRegion(frame, zoomFactor):
         translateAmount = frame.shape[1] - topY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
 
-    frame = frame[topY:bottomY, leftX:rightX]
+    frame = frame[int(topY):int(bottomY), int(leftX):int(rightX)]
 
     return frame
 
@@ -655,7 +658,7 @@ def main():
     # Starte die Threads um
     monitor_stream = MonitorGrabber(oldMonitorDropDownValue, 1280, 720).start()
     camera_stream = CameraGrabber(oldCameraDropDownValue, 640, 360).start()
-    monitor_stream_view = ImageShower(monitor_stream.picture)
+    monitor_stream_view = ImageShower(monitor_stream.picture, imageViewer)
 
     cps = CountsPerSec().start()
 
