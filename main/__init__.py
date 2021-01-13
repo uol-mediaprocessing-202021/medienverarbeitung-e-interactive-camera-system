@@ -27,6 +27,8 @@ detectionRadiusOfNewCenterPointsFromCommonCenterPoint = 75
 shouldCameraBeShown = True
 countDownWhetherCameraShouldBeShown = 40
 
+zoomValue = 1.0
+
 # create windows
 app = tk.Tk()
 app.title("Interactive Camerasystem V0.5 BETA")
@@ -602,6 +604,9 @@ def zoomOntoPointedRegion(frame, zoomFactor):
     centerpoint of the centerpointlist to the centerpoint of the farthestpointlist"""
     global XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
 
+    if frame is None:
+        return
+
     vectorToNewFrameCenter = round((XCenterPointOfFarthestPointList - XCenterPointOfCenterPointList) * 1.5), round(
         (YCenterPointOfFarthestPointList - YCenterPointOfCenterPointList) * 1.5)
 
@@ -616,30 +621,29 @@ def zoomOntoPointedRegion(frame, zoomFactor):
         xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList
 
     # determine shown rectangle
-    leftX, rightX = xCenterOfNewFrame - frame.shape[0] // zoomFactor // 2, xCenterOfNewFrame + frame.shape[
-        0] // zoomFactor // 2
-    topY, bottomY = yCenterOfNewFrame - frame.shape[1] // zoomFactor // 2, yCenterOfNewFrame + frame.shape[
-        1] // zoomFactor // 2
+    leftX, rightX = int(xCenterOfNewFrame - frame.shape[1] // zoomFactor // 2),int( xCenterOfNewFrame + frame.shape[
+        1] // zoomFactor // 2)
+    bottomY, topY = int(yCenterOfNewFrame - frame.shape[0] // zoomFactor // 2), int( yCenterOfNewFrame + frame.shape[
+        0] // zoomFactor // 2)
 
     # determine whether shown rectangle is in frame
     # translate it otherwise
 
     if 0 > leftX or 0 > rightX:
-        translateAmount = leftX
+        translateAmount = -leftX
         leftX, rightX = leftX + translateAmount, rightX + translateAmount
-    elif frame.shape[0] < leftX or frame.shape[0] < rightX:
-        translateAmount = frame.shape[0] - rightX
+    elif frame.shape[1] < leftX or frame.shape[1] < rightX:
+        translateAmount = frame.shape[1] - rightX
         leftX, rightX = leftX + translateAmount, rightX + translateAmount
 
     if 0 > bottomY or 0 > topY:
-        translateAmount = bottomY
+        translateAmount = -bottomY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
-    elif frame.shape[1] < bottomY or frame.shape[1] < topY:
-        translateAmount = frame.shape[1] - topY
+    elif frame.shape[0] < bottomY or frame.shape[0] < topY:
+        translateAmount = frame.shape[0] - topY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
 
-    frame = frame[int(topY):int(bottomY), int(leftX):int(rightX)]
-
+    frame = frame[int(bottomY):int(topY), int(leftX):int(rightX)]
     return frame
 
 
@@ -662,7 +666,7 @@ def main():
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key
+    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, zoomValue
     isHandHistogramCreated = False
     isImageFlipped = False
 
@@ -717,13 +721,19 @@ def main():
             handHistogram = None
             isHandHistogramCreated = False
 
+        if pressed_key == 'a' and isHandHistogramCreated and zoomValue<2.0:
+            zoomValue = zoomValue + 0.1
+
+        if pressed_key == 'y' and  zoomValue>0.1:
+            zoomValue = zoomValue - 0.1
+
         pressed_key = ""
 
         if isHandHistogramCreated:
             try:
                 frame = evaluateFrame(frame, handHistogram)
                 # zoom onto the pointed region
-                frame = zoomOntoPointedRegion(frame, 1.5)
+                frame = zoomOntoPointedRegion(frame, zoomValue)
 
             except RuntimeError as e:
                 print("[INFO] caught a RuntimeError")
@@ -734,7 +744,7 @@ def main():
             cameraOriginalFrame = copy.deepcopy(frame)
 
         # Update the Camera-Feed
-        if frame is not None:
+        if (frame is not None) and (frame[0] is not None) and (frame[1] is not None):
             mainCameraWithInfo.update(frame)
         if shouldCameraBeShown and frame is not None:
             x_offset = 0
