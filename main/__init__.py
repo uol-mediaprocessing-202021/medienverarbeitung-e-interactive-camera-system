@@ -28,6 +28,8 @@ detectionRadiusOfNewCenterPointsFromCommonCenterPoint = 75
 
 shouldCameraBeShown = True
 countDownWhetherCameraShouldBeShown = 40
+zoomValue = 1.0
+maxZoomValue = 3.0
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
@@ -607,6 +609,9 @@ def zoomOntoPointedRegion(frame, zoomFactor):
     centerpoint of the centerpointlist to the centerpoint of the farthestpointlist"""
     global XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
 
+    if frame is None:
+        return
+
     vectorToNewFrameCenter = round((XCenterPointOfFarthestPointList - XCenterPointOfCenterPointList) * 1.5), round(
         (YCenterPointOfFarthestPointList - YCenterPointOfCenterPointList) * 1.5)
 
@@ -616,39 +621,34 @@ def zoomOntoPointedRegion(frame, zoomFactor):
     # determine whether the vector is still in frame
     # take centerpoint of farthestpointlist alternatively
 
-    if (
-            frame.shape[1] < xCenterOfNewFrame
-            or xCenterOfNewFrame < 0
-            or frame.shape[0] < yCenterOfNewFrame
-            or yCenterOfNewFrame < 0
-    ):
+    if frame.shape[1] < xCenterOfNewFrame or 0 > xCenterOfNewFrame or frame.shape[
+        0] < yCenterOfNewFrame or 0 > yCenterOfNewFrame:
         xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList
 
     # determine shown rectangle
-    leftX, rightX = xCenterOfNewFrame - frame.shape[0] // zoomFactor // 2, xCenterOfNewFrame + frame.shape[
-        0] // zoomFactor // 2
-    topY, bottomY = yCenterOfNewFrame - frame.shape[1] // zoomFactor // 2, yCenterOfNewFrame + frame.shape[
-        1] // zoomFactor // 2
+    leftX, rightX = int(xCenterOfNewFrame - frame.shape[1] // zoomFactor // 2), int(xCenterOfNewFrame + frame.shape[
+        1] // zoomFactor // 2)
+    bottomY, topY = int(yCenterOfNewFrame - frame.shape[0] // zoomFactor // 2), int(yCenterOfNewFrame + frame.shape[
+        0] // zoomFactor // 2)
 
     # determine whether shown rectangle is in frame
     # translate it otherwise
 
-    if leftX < 0 or rightX < 0:
-        translateAmount = leftX
+    if 0 > leftX or 0 > rightX:
+        translateAmount = -leftX
         leftX, rightX = leftX + translateAmount, rightX + translateAmount
-    elif frame.shape[0] < leftX or frame.shape[0] < rightX:
-        translateAmount = frame.shape[0] - rightX
+    elif frame.shape[1] < leftX or frame.shape[1] < rightX:
+        translateAmount = frame.shape[1] - rightX
         leftX, rightX = leftX + translateAmount, rightX + translateAmount
 
-    if bottomY < 0 or topY < 0:
-        translateAmount = bottomY
+    if 0 > bottomY or 0 > topY:
+        translateAmount = -bottomY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
-    elif frame.shape[1] < bottomY or frame.shape[1] < topY:
-        translateAmount = frame.shape[1] - topY
+    elif frame.shape[0] < bottomY or frame.shape[0] < topY:
+        translateAmount = frame.shape[0] - topY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
 
-    frame = frame[int(topY):int(bottomY), int(leftX):int(rightX)]
-
+    frame = frame[int(bottomY):int(topY), int(leftX):int(rightX)]
     return frame
 
 
@@ -707,7 +707,7 @@ def main():
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key
+    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, detectionRadiusOfNewCenterPointsFromCommonCenterPoint, zoomValue, maxZoomValue
     isHandHistogramCreated = False
     isImageFlipped = False
 
@@ -748,6 +748,7 @@ def main():
 
         if isImageFlipped:
             cameraOriginalFrame = cv2.flip(cameraOriginalFrame, 1)
+            frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
         if pressed_key == 'z' and not isHandHistogramCreated:
@@ -757,18 +758,32 @@ def main():
         # enlargen or shrink detection radius if + or - is pressed
         if pressed_key == '+':
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
+            detectionRadiusOfNewCenterPointsFromCommonCenterPoint += 10
 
-        if pressed_key == '-':
+        if pressed_key == '-' and (
+                detectionRadiusOfFarthestPointsFromCommonFarthestPoint > 10 and detectionRadiusOfNewCenterPointsFromCommonCenterPoint > 10):
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
+            detectionRadiusOfNewCenterPointsFromCommonCenterPoint -= 10
 
         if pressed_key == 'r' and isHandHistogramCreated:
             handHistogram = None
             isHandHistogramCreated = False
+
+        if pressed_key == 'a' and isHandHistogramCreated and zoomValue < maxZoomValue:
+            zoomValue = zoomValue + 0.1
+
+        if pressed_key == 'y' and zoomValue > 1:
+            zoomValue = zoomValue - 0.1
+
+        # fix eventual problems
+        if zoomValue > maxZoomValue:
+            zoomValue = maxZoomValue
+        elif zoomValue < 1:
             zoomValue = 1
 
         pressed_key = ""
 
-        if isHandHistogramCreated:
+        if isHandHistogramCreated and frame is not None and cameraOriginalFrame is not None:
             try:
                 frame = evaluateFrame(frame, handHistogram)
 
@@ -776,7 +791,10 @@ def main():
                 print(getGesturePredictionFromTensorflow(histogramThreshWindow.frame, model))
 
                 # zoom onto the pointed region
-                frame = zoomOntoPointedRegion(frame, 1.5)
+                cameraOriginalFrame = zoomOntoPointedRegion(cameraOriginalFrame, zoomValue)
+                cameraOriginalFrame = cv2.resize(cameraOriginalFrame, (frame.shape[1], frame.shape[0]),
+                                                 interpolation=cv2.INTER_AREA)
+
 
             except RuntimeError:
                 print("[INFO] caught a RuntimeError")
