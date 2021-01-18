@@ -764,6 +764,7 @@ def main():
         if pressed_key == 'r' and isHandHistogramCreated:
             handHistogram = None
             isHandHistogramCreated = False
+            zoomValue = 1
 
         pressed_key = ""
 
