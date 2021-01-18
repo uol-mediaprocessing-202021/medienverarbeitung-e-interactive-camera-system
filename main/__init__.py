@@ -1,10 +1,12 @@
 import copy
+import operator
 import tkinter as tk
 from datetime import datetime
 from threading import Thread
 
 import cv2
 import numpy as np
+import tensorflow as tf
 from PIL import Image
 from PIL import ImageTk
 from mss import mss
@@ -27,8 +29,8 @@ detectionRadiusOfNewCenterPointsFromCommonCenterPoint = 75
 shouldCameraBeShown = True
 countDownWhetherCameraShouldBeShown = 40
 
-zoomValue = 1.0
-maxZoomValue = 3.0
+# Disable scientific notation for clarity
+np.set_printoptions(suppress=True)
 
 # create windows
 app = tk.Tk()
@@ -605,9 +607,6 @@ def zoomOntoPointedRegion(frame, zoomFactor):
     centerpoint of the centerpointlist to the centerpoint of the farthestpointlist"""
     global XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
 
-    if frame is None:
-        return
-
     vectorToNewFrameCenter = round((XCenterPointOfFarthestPointList - XCenterPointOfCenterPointList) * 1.5), round(
         (YCenterPointOfFarthestPointList - YCenterPointOfCenterPointList) * 1.5)
 
@@ -617,40 +616,81 @@ def zoomOntoPointedRegion(frame, zoomFactor):
     # determine whether the vector is still in frame
     # take centerpoint of farthestpointlist alternatively
 
-    if frame.shape[1] < xCenterOfNewFrame or 0 > xCenterOfNewFrame or frame.shape[
-        0] < yCenterOfNewFrame or 0 > yCenterOfNewFrame:
+    if (
+            frame.shape[1] < xCenterOfNewFrame
+            or xCenterOfNewFrame < 0
+            or frame.shape[0] < yCenterOfNewFrame
+            or yCenterOfNewFrame < 0
+    ):
         xCenterOfNewFrame, yCenterOfNewFrame = XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList
 
     # determine shown rectangle
-    leftX, rightX = int(xCenterOfNewFrame - frame.shape[1] // zoomFactor // 2),int( xCenterOfNewFrame + frame.shape[
-        1] // zoomFactor // 2)
-    bottomY, topY = int(yCenterOfNewFrame - frame.shape[0] // zoomFactor // 2), int( yCenterOfNewFrame + frame.shape[
-        0] // zoomFactor // 2)
+    leftX, rightX = xCenterOfNewFrame - frame.shape[0] // zoomFactor // 2, xCenterOfNewFrame + frame.shape[
+        0] // zoomFactor // 2
+    topY, bottomY = yCenterOfNewFrame - frame.shape[1] // zoomFactor // 2, yCenterOfNewFrame + frame.shape[
+        1] // zoomFactor // 2
 
     # determine whether shown rectangle is in frame
     # translate it otherwise
 
-    if 0 > leftX or 0 > rightX:
-        translateAmount = -leftX
+    if leftX < 0 or rightX < 0:
+        translateAmount = leftX
         leftX, rightX = leftX + translateAmount, rightX + translateAmount
-    elif frame.shape[1] < leftX or frame.shape[1] < rightX:
-        translateAmount = frame.shape[1] - rightX
+    elif frame.shape[0] < leftX or frame.shape[0] < rightX:
+        translateAmount = frame.shape[0] - rightX
         leftX, rightX = leftX + translateAmount, rightX + translateAmount
 
-    if 0 > bottomY or 0 > topY:
-        translateAmount = -bottomY
+    if bottomY < 0 or topY < 0:
+        translateAmount = bottomY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
-    elif frame.shape[0] < bottomY or frame.shape[0] < topY:
-        translateAmount = frame.shape[0] - topY
+    elif frame.shape[1] < bottomY or frame.shape[1] < topY:
+        translateAmount = frame.shape[1] - topY
         bottomY, topY = bottomY + translateAmount, topY + translateAmount
 
-    frame = frame[int(bottomY):int(topY), int(leftX):int(rightX)]
+    frame = frame[int(topY):int(bottomY), int(leftX):int(rightX)]
+
     return frame
 
 
 def key_pressed(event):
     global pressed_key
     pressed_key = event.char
+
+
+def getGesturePredictionFromTensorflow(frame, model):
+    if frame is None or model is None or type(frame) != np.ndarray or type(model) != tf.keras.Sequential:
+        return "OTHER"
+    h1 = frame.shape[0]
+    w1 = frame.shape[1]
+
+    # Create the array of the right shape to feed into the keras model
+    # The 'length' or number of images you can put into the array is
+    # determined by the first position in the shape tuple, in this case 1.
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+
+    # Replace this with the path to your image
+    dimension = (224, 224)
+    image = cv2.resize(frame, dimension, interpolation=cv2.INTER_AREA)
+
+    # turn the image into a numpy array
+    image_array = np.asarray(image)
+
+    # Normalize the image
+    normalized_image_array = (image_array.astype(np.float32) / 127.0) - 1
+
+    # Load the image into the array
+    data[0] = normalized_image_array
+
+    # run the inference
+    prediction = model.predict(data)
+
+    # print(prediction)
+    predictionDictionary = {
+        "LEFT": prediction[0][0],
+        "RIGHT": prediction[0][1],
+        "OTHER": prediction[0][2]
+    }
+    return max(predictionDictionary.items(), key=operator.itemgetter(1))[0]
 
 
 def main():
@@ -667,9 +707,12 @@ def main():
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, zoomValue, detectionRadiusOfNewCenterPointsFromCommonCenterPoint
+    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key
     isHandHistogramCreated = False
     isImageFlipped = False
+
+    # Load Tensorflow Model
+    model = tf.keras.models.load_model('keras_model.h5')
 
     # Bind Key-Press-Event to Window
     app.bind("<Key>", key_pressed)
@@ -705,7 +748,6 @@ def main():
 
         if isImageFlipped:
             cameraOriginalFrame = cv2.flip(cameraOriginalFrame, 1)
-            frame = cv2.flip(frame, 1)
 
         # capture handhistogram if 'z' is pressed
         if pressed_key == 'z' and not isHandHistogramCreated:
@@ -715,42 +757,30 @@ def main():
         # enlargen or shrink detection radius if + or - is pressed
         if pressed_key == '+':
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
-            detectionRadiusOfNewCenterPointsFromCommonCenterPoint += 10
 
-        if pressed_key == '-' and (detectionRadiusOfFarthestPointsFromCommonFarthestPoint > 10 and detectionRadiusOfNewCenterPointsFromCommonCenterPoint > 10):
+        if pressed_key == '-':
             detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
-            detectionRadiusOfNewCenterPointsFromCommonCenterPoint -= 10
 
         if pressed_key == 'r' and isHandHistogramCreated:
             handHistogram = None
             isHandHistogramCreated = False
 
-        if pressed_key == 'a' and isHandHistogramCreated and zoomValue<maxZoomValue:
-            zoomValue = zoomValue + 0.1
-
-        if pressed_key == 'y' and  zoomValue>1:
-            zoomValue = zoomValue - 0.1
-
-        # fix eventual problems
-        if zoomValue> maxZoomValue :
-            zoomValue = maxZoomValue
-        elif zoomValue < 1:
-            zoomValue = 1
-
         pressed_key = ""
 
-        if isHandHistogramCreated and frame is not None and cameraOriginalFrame is not None:
+        if isHandHistogramCreated:
             try:
                 frame = evaluateFrame(frame, handHistogram)
+
+                # Evaluate Gesture with Tensorflow
+                print(getGesturePredictionFromTensorflow(histogramThreshWindow.frame, model))
+
                 # zoom onto the pointed region
-                #frame = zoomOntoPointedRegion(frame, zoomValue)
+                frame = zoomOntoPointedRegion(frame, 1.5)
 
-                cameraOriginalFrame = zoomOntoPointedRegion(cameraOriginalFrame, zoomValue)
-                cameraOriginalFrame = cv2.resize(cameraOriginalFrame, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
-                #self.picture = cv2.resize(np.array(img), (self.width, self.height), interpolation=cv2.INTER_AREA)
-
-            except RuntimeError as e:
+            except RuntimeError:
                 print("[INFO] caught a RuntimeError")
+            except AttributeError:
+                pass
 
         # Draw rectangles for Handhistogram capture
         else:
@@ -758,7 +788,7 @@ def main():
             cameraOriginalFrame = copy.deepcopy(frame)
 
         # Update the Camera-Feed
-        if (frame is not None) and (frame[0] is not None) and (frame[1] is not None):
+        if frame is not None:
             mainCameraWithInfo.update(frame)
         if shouldCameraBeShown and frame is not None:
             x_offset = 0
