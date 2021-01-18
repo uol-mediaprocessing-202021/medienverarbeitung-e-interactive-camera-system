@@ -24,7 +24,7 @@ detectionRadiusOfFarthestPointsFromCommonFarthestPoint = 200
 
 lastCenterPointPositions = []
 XCenterPointOfCenterPointList, YCenterPointOfCenterPointList = None, None
-detectionRadiusOfNewCenterPointsFromCommonCenterPoint = 75
+detectionRadiusOfNewCenterPointsFromCommonCenterPoint = int(detectionRadiusOfFarthestPointsFromCommonFarthestPoint*3/4)
 
 shouldCameraBeShown = True
 countDownWhetherCameraShouldBeShown = 40
@@ -493,6 +493,9 @@ def drawCirclesOnTraversedPoints(frame, traversedPoints):
 
             cv2.circle(frame, (XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList),
                        detectionRadiusOfFarthestPointsFromCommonFarthestPoint, [0, 255, 0], 1)
+
+            cv2.circle(frame, (XCenterPointOfCenterPointList, YCenterPointOfCenterPointList), detectionRadiusOfNewCenterPointsFromCommonCenterPoint, [0,0,255], 1)
+
         return frame
 
 
@@ -757,13 +760,13 @@ def main():
 
         # enlargen or shrink detection radius if + or - is pressed
         if pressed_key == '+':
-            detectionRadiusOfFarthestPointsFromCommonFarthestPoint += 10
-            detectionRadiusOfNewCenterPointsFromCommonCenterPoint += 10
+            detectionRadiusOfFarthestPointsFromCommonFarthestPoint = int(detectionRadiusOfFarthestPointsFromCommonFarthestPoint * 1.1)
+            detectionRadiusOfNewCenterPointsFromCommonCenterPoint = int(detectionRadiusOfFarthestPointsFromCommonFarthestPoint*3/4)
 
         if pressed_key == '-' and (
                 detectionRadiusOfFarthestPointsFromCommonFarthestPoint > 10 and detectionRadiusOfNewCenterPointsFromCommonCenterPoint > 10):
-            detectionRadiusOfFarthestPointsFromCommonFarthestPoint -= 10
-            detectionRadiusOfNewCenterPointsFromCommonCenterPoint -= 10
+            detectionRadiusOfFarthestPointsFromCommonFarthestPoint = int(detectionRadiusOfFarthestPointsFromCommonFarthestPoint * 0.9)
+            detectionRadiusOfNewCenterPointsFromCommonCenterPoint = int(detectionRadiusOfFarthestPointsFromCommonFarthestPoint*3/4)
 
         if pressed_key == 'r' and isHandHistogramCreated:
             handHistogram = None
