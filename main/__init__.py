@@ -32,6 +32,10 @@ countDownWhetherCameraShouldBeShown = 40
 zoomValue = 1.0
 maxZoomValue = 3.0
 
+# Tensorflow
+lastDetection = None
+lastDetectionCount = 0
+
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
 
@@ -699,7 +703,15 @@ def getGesturePredictionFromTensorflow(frame, model):
         "RIGHT": prediction[0][1],
         "OTHER": prediction[0][2]
     }
-    return max(predictionDictionary.items(), key=operator.itemgetter(1))[0]
+    global lastDetection, lastDetectionCount
+    detection = max(predictionDictionary.items(), key=operator.itemgetter(1))[0]
+    if lastDetection is None or lastDetection != detection:
+        lastDetection = detection
+        lastDetectionCount = 0
+    else:
+        lastDetectionCount += 1
+
+    return detection
 
 
 def main():
@@ -716,7 +728,7 @@ def main():
 
     cps = CountsPerSec().start()
 
-    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, detectionRadiusOfNewCenterPointsFromCommonCenterPoint, zoomValue, maxZoomValue
+    global handHistogram, detectionRadiusOfFarthestPointsFromCommonFarthestPoint, pressed_key, detectionRadiusOfNewCenterPointsFromCommonCenterPoint, zoomValue, maxZoomValue, lastDetectionCount, lastDetection
     isHandHistogramCreated = False
     isImageFlipped = False
 
@@ -788,12 +800,6 @@ def main():
         if pressed_key == 'y' and zoomValue > 1:
             zoomValue = zoomValue - 0.1
 
-        # fix eventual problems
-        if zoomValue > maxZoomValue:
-            zoomValue = maxZoomValue
-        elif zoomValue < 1:
-            zoomValue = 1
-
         pressed_key = ""
 
         if isHandHistogramCreated and frame is not None and cameraOriginalFrame is not None:
@@ -801,12 +807,25 @@ def main():
                 frame = evaluateFrame(frame, handHistogram)
 
                 # Evaluate Gesture with Tensorflow
-                print(getGesturePredictionFromTensorflow(histogramThreshWindow.frame, model))
+                if shouldCameraBeShown:
+                    getGesturePredictionFromTensorflow(histogramThreshWindow.frame, model)
+                    if lastDetectionCount > 3:
+                        lastDetectionCount = 0
+                        if lastDetection == "RIGHT":
+                            zoomValue += 0.3
+                        elif lastDetection == "LEFT":
+                            zoomValue -= 0.3
 
-                # zoom onto the pointed region
-                cameraOriginalFrame = zoomOntoPointedRegion(cameraOriginalFrame, zoomValue)
-                cameraOriginalFrame = cv2.resize(cameraOriginalFrame, (frame.shape[1], frame.shape[0]),
-                                                 interpolation=cv2.INTER_AREA)
+                    # zoom onto the pointed region
+                    # fix eventual problems
+                    if zoomValue > maxZoomValue:
+                        zoomValue = maxZoomValue
+                    elif zoomValue < 1:
+                        zoomValue = 1
+
+                    cameraOriginalFrame = zoomOntoPointedRegion(cameraOriginalFrame, zoomValue)
+                    cameraOriginalFrame = cv2.resize(cameraOriginalFrame, (frame.shape[1], frame.shape[0]),
+                                                     interpolation=cv2.INTER_AREA)
 
 
             except RuntimeError:
