@@ -550,7 +550,7 @@ def evaluateFrame(frame, hand_hist):
     global shouldCameraBeShown, countDownWhetherCameraShouldBeShown, lastCenterPointPositions, XCenterPointOfFarthestPointList, YCenterPointOfFarthestPointList, XCenterPointOfCenterPointList, YCenterPointOfCenterPointList
     maskedHistogramImage = maskFrameWithHistogram(frame, hand_hist)
 
-    # cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
+    cv2.imshow("evaluateFrame_noisyImage", maskedHistogramImage)
 
     # reduce noise
     maskedHistogramImage = cv2.erode(maskedHistogramImage, None, iterations=2)
@@ -562,7 +562,11 @@ def evaluateFrame(frame, hand_hist):
 
     # check whether the contourList is emtpy AKA no hand is seen in the frame AKA dots all around the frame
     if contourList:
+        #find ends of each contourline
         maxCont = max(contourList, key=cv2.contourArea)
+        #contourImage = copy.deepcopy(maskedHistogramImage)
+        #cv2.drawContours(contourImage, maxCont, -1, (0,255,0), 3)
+        #cv2.imshow("KonturImage",contourImage)
 
         centerOfMaxCont = getCenterCoordinatesOfContour(maxCont)
         if centerOfMaxCont is not None:
