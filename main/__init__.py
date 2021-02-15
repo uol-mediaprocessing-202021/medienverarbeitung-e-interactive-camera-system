@@ -817,8 +817,10 @@ def main():
                         lastDetectionCount = 0
                         if lastDetection == "RIGHT":
                             zoomValue += 0.3
+                            print("VERGRÖßERN")
                         elif lastDetection == "LEFT":
                             zoomValue -= 0.3
+                            print("VERKLEINERN")
 
                     # zoom onto the pointed region
                     # fix eventual problems
