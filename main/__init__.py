@@ -562,7 +562,7 @@ def evaluateFrame(frame, hand_hist):
 
     # check whether the contourList is emtpy AKA no hand is seen in the frame AKA dots all around the frame
     if contourList:
-        #find ends of each contourline
+        #find longest contour with enclosed area
         maxCont = max(contourList, key=cv2.contourArea)
         #contourImage = copy.deepcopy(maskedHistogramImage)
         #cv2.drawContours(contourImage, maxCont, -1, (0,255,0), 3)
@@ -599,7 +599,18 @@ def evaluateFrame(frame, hand_hist):
             hull = cv2.convexHull(maxCont, returnPoints=False)
             defects = cv2.convexityDefects(maxCont, hull)
             farthestPoint = getFarthestPointFromContour(defects, maxCont, centerOfMaxCont)
-            # print("Centroid : " + str(centerOfMaxCont) + ", farthest Point : " + str(farthestPoint))
+            contourImage = np.zeros((maskedHistogramImage.shape[0], maskedHistogramImage.shape[1], 3), dtype=np.uint8)
+
+            for i in range(defects.shape[0]):
+                s,e,f,d = defects[i,0]
+                start = tuple(maxCont[s][0])
+                end = tuple(maxCont[e][0])
+                far = tuple(maxCont[f][0])
+                cv2.line(contourImage,start,end,[255,100,100],2)
+                cv2.circle(contourImage,far,5,[0,0,255],-1)
+
+            cv2.drawContours(contourImage, contourList, -1, (0,255,0), 3)
+            cv2.imshow("KonturImage",contourImage)
             if farthestPoint is not None:
                 # Build up farthest point list
                 if len(farthestPointList) < 25:
